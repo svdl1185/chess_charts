@@ -233,7 +233,7 @@ const Charts = (() => {
     return `rgba(231, 76, 60, ${alpha})`;
   }
 
-  function renderScatterChart(opponents) {
+  function renderScatterChart(opponents, userRatingChange) {
     const ctx = document.getElementById('chart-scatter').getContext('2d');
     if (scatterChart) scatterChart.destroy();
 
@@ -241,36 +241,26 @@ const Charts = (() => {
     let maxAbsChange = 1;
 
     opponents.forEach(opp => {
-      if (opp.currentRating == null || opp.gamesDiff == null) return;
+      if (opp.currentRating == null) return;
       const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
       valid.push({ ...opp, ratingChange });
     });
 
     const colors = valid.map(opp => scatterColor(opp.ratingChange, maxAbsChange));
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.ratingChange }));
 
-    function symlog(v) {
-      return Math.sign(v) * Math.log10(1 + Math.abs(v));
-    }
-
-    const data = valid.map(opp => ({ x: opp.gameDate, y: symlog(opp.gamesDiff) }));
-
-    const allY = data.map(d => d.y);
-    const yMin = Math.min(...allY);
-    const yMax = Math.max(...allY);
-    const yPad = (yMax - yMin) * 0.05 || 1;
+    const datasets = [{
+      data,
+      backgroundColor: colors,
+      borderColor: 'transparent',
+      pointRadius: 4.5,
+      pointHoverRadius: 7,
+    }];
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
-      data: {
-        datasets: [{
-          data,
-          backgroundColor: colors,
-          borderColor: 'transparent',
-          pointRadius: 4.5,
-          pointHoverRadius: 7,
-        }],
-      },
+      data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -294,14 +284,43 @@ const Charts = (() => {
                 const opp = valid[item.dataIndex];
                 if (!opp) return '';
                 const sign = opp.ratingChange >= 0 ? '+' : '';
-                const diffSign = opp.gamesDiff >= 0 ? '+' : '';
                 const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
                 return [
                   `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${sign}${opp.ratingChange})`,
-                  `Games since: ~${opp.estOppGamesSince} them vs ${opp.userGamesSince} you (${diffSign}${opp.gamesDiff})`,
                   `Played: ${date}`,
                 ];
               },
+            },
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0,
+                yMax: 0,
+                borderColor: 'rgba(255, 255, 255, 0.15)',
+                borderWidth: 1,
+              },
+              ...(userRatingChange != null ? {
+                youLine: {
+                  type: 'line',
+                  yMin: userRatingChange,
+                  yMax: userRatingChange,
+                  borderColor: 'rgba(231, 76, 60, 0.6)',
+                  borderWidth: 2,
+                  borderDash: [6, 4],
+                  label: {
+                    display: true,
+                    content: `You: ${userRatingChange >= 0 ? '+' : ''}${userRatingChange}`,
+                    position: 'start',
+                    backgroundColor: 'rgba(231, 76, 60, 0.8)',
+                    color: '#fff',
+                    font: { size: 11, weight: 'bold' },
+                    padding: { top: 2, bottom: 2, left: 6, right: 6 },
+                    borderRadius: 3,
+                  },
+                },
+              } : {}),
             },
           },
         },
@@ -314,16 +333,7 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            min: yMin - yPad,
-            max: yMax + yPad,
-            title: { display: true, text: 'Games diff (symlog scale)', color: TICK_COLOR },
-            ticks: {
-              ...baseScale.ticks,
-              callback: val => {
-                const raw = Math.sign(val) * (Math.pow(10, Math.abs(val)) - 1);
-                return Math.abs(raw) >= 1000 ? `${(raw / 1000).toFixed(1)}k` : Math.round(raw).toLocaleString();
-              },
-            },
+            title: { display: true, text: 'Rating change since your game', color: TICK_COLOR },
           },
         },
       },
