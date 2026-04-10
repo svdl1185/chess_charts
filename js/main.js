@@ -1,5 +1,5 @@
 (() => {
-  const MAX_OPPONENTS = 30;
+  const CHART2_MAX_OPPONENTS = 50;
 
   const form = document.getElementById('analyze-form');
   const usernameInput = document.getElementById('username');
@@ -29,9 +29,14 @@
   }
 
   function setProgress(current, total) {
-    const pct = Math.round((current / total) * 100);
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
     progressFill.style.width = `${pct}%`;
-    loadingDetail.textContent = `${current} / ${total}`;
+    loadingDetail.textContent = `${current.toLocaleString()} / ${total.toLocaleString()}`;
+  }
+
+  function setProgressIndeterminate(text) {
+    progressFill.style.width = '100%';
+    loadingDetail.textContent = text;
   }
 
   function showError(msg) {
@@ -43,7 +48,7 @@
     const cards = chartsSection.querySelectorAll('.chart-card');
     cards.forEach(card => {
       card.style.animation = 'none';
-      card.offsetHeight; // force reflow
+      card.offsetHeight;
       card.style.animation = '';
     });
   }
@@ -52,9 +57,9 @@
     Charts.destroyAll();
     showLoading();
 
-    // Phase 1: rating history
+    // Phase 1: rating history (single call)
     setPhase('Fetching your rating history...');
-    setProgress(1, 4);
+    setProgressIndeterminate('');
 
     let ratingHistory;
     try {
@@ -70,51 +75,69 @@
       return;
     }
 
-    // Show Chart 1 immediately
-    setProgress(2, 4);
+    // Show chart 1 immediately
     chartsSection.classList.remove('hidden');
     restartCardAnimations();
     Charts.renderRatingChart(userPoints, username);
 
-    // Phase 2: fetch games
-    setPhase('Loading your games...');
-    setProgress(2, 4);
+    // Phase 2: stream ALL games
+    setPhase('Loading all your games...');
+    const games = [];
+    const gamesPath = `/api/games/user/${encodeURIComponent(username)}?perfType=${variant}&rated=true&sort=dateDesc`;
 
-    let games;
     try {
-      games = await LichessAPI.getUserGames(username, variant, 100);
+      await LichessAPI.streamNDJSON(gamesPath, (game, count) => {
+        games.push(game);
+        if (count % 50 === 0 || count < 20) {
+          setProgressIndeterminate(`${count.toLocaleString()} games loaded`);
+        }
+      });
     } catch (e) {
       showError(`Failed to load games: ${e.message}`);
       return;
     }
 
+    setProgressIndeterminate(`${games.length.toLocaleString()} games loaded`);
+
     if (!games.length) {
-      setPhase('No games found for this variant.');
       hideLoading();
       return;
     }
 
     const allOpponents = LichessAPI.extractOpponents(games, username);
-    const opponents = allOpponents.slice(0, MAX_OPPONENTS);
+    setPhase(`Found ${allOpponents.length.toLocaleString()} unique opponents`);
 
-    // Phase 3: fetch opponent histories
-    setPhase('Analyzing opponents...');
-    setProgress(0, opponents.length);
+    // Phase 3: batch-fetch current ratings for ALL opponents (300 per call)
+    setPhase('Fetching current ratings...');
+    setProgress(0, allOpponents.length);
+
+    const allWithRatings = await LichessAPI.batchFetchCurrentRatings(
+      allOpponents,
+      variant,
+      (done, total) => {
+        setPhase(`Fetching current ratings...`);
+        setProgress(done, total);
+      }
+    );
+
+    // Render chart 3 (scatter) with ALL opponents
+    Charts.renderScatterChart(allWithRatings);
+
+    // Phase 4: fetch full rating histories for chart 2 subset
+    const chart2Opponents = allOpponents.slice(0, CHART2_MAX_OPPONENTS);
+    setPhase(`Loading rating histories (${chart2Opponents.length} recent opponents)...`);
+    setProgress(0, chart2Opponents.length);
 
     const opponentData = await LichessAPI.getOpponentHistories(
-      opponents,
+      chart2Opponents,
       variant,
       (current, total) => {
-        setPhase(`Analyzing opponent ${current} of ${total}...`);
+        setPhase(`Loading rating history ${current} of ${total}...`);
         setProgress(current, total);
       }
     );
 
-    // Phase 4: render charts 2 & 3
-    setPhase('Rendering charts...');
-
     Charts.renderOpponentsChart(userPoints, opponentData, username);
-    Charts.renderScatterChart(opponentData);
 
     hideLoading();
   }

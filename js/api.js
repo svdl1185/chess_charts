@@ -1,6 +1,7 @@
 const LichessAPI = (() => {
   const BASE = 'https://lichess.org';
   const CONCURRENCY = 5;
+  const BATCH_SIZE = 300;
   const RETRY_DELAY = 2000;
   const MAX_RETRIES = 3;
 
@@ -11,6 +12,15 @@ const LichessAPI = (() => {
     rapid: 'Rapid',
     classical: 'Classical',
     correspondence: 'Correspondence',
+  };
+
+  const PERF_KEY_MAP = {
+    ultraBullet: 'ultraBullet',
+    bullet: 'bullet',
+    blitz: 'blitz',
+    rapid: 'rapid',
+    classical: 'classical',
+    correspondence: 'correspondence',
   };
 
   function sleep(ms) {
@@ -36,15 +46,15 @@ const LichessAPI = (() => {
     return res.json();
   }
 
-  async function fetchNDJSON(path) {
+  async function streamNDJSON(path, onItem) {
     const res = await fetchWithRetry(`${BASE}${path}`, {
       headers: { Accept: 'application/x-ndjson' },
     });
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    const items = [];
     let buffer = '';
+    let count = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -55,13 +65,21 @@ const LichessAPI = (() => {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-        try { items.push(JSON.parse(trimmed)); } catch { /* skip */ }
+        try {
+          const obj = JSON.parse(trimmed);
+          count++;
+          if (onItem) onItem(obj, count);
+        } catch { /* skip */ }
       }
     }
     if (buffer.trim()) {
-      try { items.push(JSON.parse(buffer.trim())); } catch { /* skip */ }
+      try {
+        const obj = JSON.parse(buffer.trim());
+        count++;
+        if (onItem) onItem(obj, count);
+      } catch { /* skip */ }
     }
-    return items;
+    return count;
   }
 
   async function getRatingHistory(username) {
@@ -78,11 +96,6 @@ const LichessAPI = (() => {
       date: new Date(y, m, d),
       rating: r,
     }));
-  }
-
-  async function getUserGames(username, variant, max = 100) {
-    const path = `/api/games/user/${encodeURIComponent(username)}?perfType=${variant}&max=${max}&rated=true&sort=dateDesc`;
-    return fetchNDJSON(path);
   }
 
   function extractOpponents(games, myUsername) {
@@ -111,6 +124,42 @@ const LichessAPI = (() => {
       }
     }
     return [...seen.values()];
+  }
+
+  async function batchFetchCurrentRatings(opponents, variant, onProgress) {
+    const perfKey = PERF_KEY_MAP[variant] || variant;
+    const chunks = [];
+    for (let i = 0; i < opponents.length; i += BATCH_SIZE) {
+      chunks.push(opponents.slice(i, i + BATCH_SIZE));
+    }
+
+    const ratingMap = new Map();
+    let done = 0;
+
+    for (const chunk of chunks) {
+      const ids = chunk.map(o => o.id).join(',');
+      try {
+        const res = await fetchWithRetry(`${BASE}/api/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: ids,
+        });
+        const users = await res.json();
+        for (const u of users) {
+          const perf = u.perfs?.[perfKey];
+          if (perf) {
+            ratingMap.set(u.id.toLowerCase(), perf.rating);
+          }
+        }
+      } catch { /* skip failed batch */ }
+      done += chunk.length;
+      if (onProgress) onProgress(Math.min(done, opponents.length), opponents.length);
+    }
+
+    return opponents.map(opp => ({
+      ...opp,
+      currentRating: ratingMap.get(opp.id.toLowerCase()) ?? null,
+    }));
   }
 
   async function runPool(tasks, concurrency, onItemDone) {
@@ -153,8 +202,9 @@ const LichessAPI = (() => {
     VARIANT_MAP,
     getRatingHistory,
     extractVariantHistory,
-    getUserGames,
+    streamNDJSON,
     extractOpponents,
+    batchFetchCurrentRatings,
     getOpponentHistories,
   };
 })();

@@ -257,33 +257,30 @@ const Charts = (() => {
     let maxAbsChange = 1;
 
     opponents.forEach(opp => {
-      if (!opp.points.length) return;
-      const lastRating = opp.points[opp.points.length - 1].rating;
-      const ratingChange = lastRating - (opp.ratingAtGame || lastRating);
+      if (opp.currentRating == null) return;
+      const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
     });
 
     opponents.forEach(opp => {
-      if (!opp.points.length) return;
-      const lastRating = opp.points[opp.points.length - 1].rating;
-      const ratingChange = lastRating - (opp.ratingAtGame || lastRating);
-      const gamesCount = opp.points.length;
+      if (opp.currentRating == null) return;
+      const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
 
       const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
-      const dotSize = Math.max(4, 14 - ratingGap / 150);
+      const dotSize = Math.max(3, Math.min(10, 10 - ratingGap / 200));
 
       const t = ratingChange / maxAbsChange;
       const c = lerpColor(t);
 
       points.push({
-        x: gamesCount,
+        x: opp.gameDate,
         y: ratingChange,
         username: opp.username,
         ratingThen: opp.ratingAtGame,
-        ratingNow: lastRating,
+        ratingNow: opp.currentRating,
         r: dotSize,
-        _bgColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`,
-        _borderColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`,
+        _bgColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.55)`,
+        _borderColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.8)`,
       });
     });
 
@@ -314,9 +311,10 @@ const Charts = (() => {
               title: items => items[0]?.raw?.username || '',
               label: item => {
                 const p = item.raw;
+                const date = new Date(p.x).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
                 return [
+                  `Played: ${date}`,
                   `Rating: ${p.ratingThen} → ${p.ratingNow} (${p.y >= 0 ? '+' : ''}${p.y})`,
-                  `Data points: ${p.x}`,
                 ];
               },
             },
@@ -325,7 +323,9 @@ const Charts = (() => {
         scales: {
           x: {
             ...baseScaleOpts,
-            title: { display: true, text: 'Rating data points (activity level)', color: TICK_COLOR },
+            type: 'time',
+            time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
+            title: { display: true, text: 'Date you played this opponent', color: TICK_COLOR },
           },
           y: {
             ...baseScaleOpts,
