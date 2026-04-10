@@ -1,0 +1,338 @@
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-card: #1a1a2e;
+  --bg-input: #16213e;
+  --border: #2a2a4a;
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a8;
+  --accent-red: #e74c3c;
+  --accent-red-glow: rgba(231, 76, 60, 0.3);
+  --accent-blue: #3498db;
+  --accent-green: #2ecc71;
+  --accent-amber: #f39c12;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* ── Header ── */
+
+.header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.header__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.header__title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent-red), #ff7675);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header__subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+/* ── Input Form ── */
+
+.input-section {
+  margin-bottom: 2rem;
+}
+
+.input-form {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.input-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.input-form__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-form__input,
+.input-form__select {
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 200px;
+}
+
+.input-form__input:focus,
+.input-form__select:focus {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 3px var(--accent-red-glow);
+}
+
+.input-form__select {
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.input-form__select option {
+  background: var(--bg-card);
+}
+
+.input-form__btn {
+  padding: 0.7rem 2rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.input-form__btn:hover {
+  background: #c0392b;
+  box-shadow: 0 0 16px var(--accent-red-glow);
+}
+
+.input-form__btn:active {
+  transform: scale(0.97);
+}
+
+.input-form__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Loading Overlay ── */
+
+.loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  transition: opacity 0.3s;
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.loading-knight {
+  animation: knightBounce 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px var(--accent-red-glow));
+}
+
+@keyframes knightBounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-12px) rotate(-5deg); }
+  75% { transform: translateY(-6px) rotate(5deg); }
+}
+
+.loading-phase {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.progress-bar {
+  width: 300px;
+  max-width: 80vw;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-red), #ff7675);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.loading-detail {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ── Charts Section ── */
+
+.charts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  transition: opacity 0.5s;
+}
+
+.charts-section.hidden {
+  display: none;
+}
+
+.chart-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: cardIn 0.5s ease forwards;
+}
+
+.chart-card:nth-child(2) { animation-delay: 0.1s; }
+.chart-card:nth-child(3) { animation-delay: 0.2s; }
+
+@keyframes cardIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-card__header {
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.chart-card__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+}
+
+.chart-card__desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.text-red {
+  color: var(--accent-red);
+  font-weight: 700;
+}
+
+.chart-card__body {
+  padding: 1rem 1.5rem 1.5rem;
+  position: relative;
+  height: 350px;
+}
+
+.chart-card__body--tall {
+  height: 450px;
+}
+
+.chart-card__body canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Footer ── */
+
+.footer {
+  text-align: center;
+  padding-top: 3rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.footer a {
+  color: var(--accent-red);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 640px) {
+  .app {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .header__title {
+    font-size: 1.5rem;
+  }
+
+  .input-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .input-form__input,
+  .input-form__select {
+    min-width: 0;
+  }
+
+  .input-form__btn {
+    width: 100%;
+  }
+
+  .chart-card__body {
+    height: 280px;
+    padding: 0.75rem 0.75rem 1rem;
+  }
+
+  .chart-card__body--tall {
+    height: 340px;
+  }
+}
