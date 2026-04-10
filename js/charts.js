@@ -137,8 +137,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Games / month',
           data: volumeData,
-          backgroundColor: 'rgba(100, 180, 255, 0.4)',
-          borderColor: 'rgba(100, 180, 255, 0.6)',
+          backgroundColor: 'rgba(100, 180, 255, 0.25)',
+          borderColor: 'rgba(100, 180, 255, 0.4)',
           borderWidth: 1,
           borderRadius: 2,
           barPercentage: 0.9,
@@ -224,7 +224,7 @@ const Charts = (() => {
   /* ─── Scatter: Improvement plot ─── */
 
   function scatterColor(diff, maxAbsDiff) {
-    const norm = Math.min(1, Math.abs(diff) / Math.max(1, maxAbsDiff));
+    const norm = Math.min(1, Math.abs(diff) / maxAbsDiff);
     const t = Math.pow(norm, 0.4);
     const alpha = 0.5 + t * 0.45;
     if (diff >= 0) {
@@ -233,36 +233,36 @@ const Charts = (() => {
     return `rgba(231, 76, 60, ${alpha})`;
   }
 
-  function renderScatterChart(opponents, userRatingChange) {
+  function renderScatterChart(opponents, userCurrentRating) {
     const ctx = document.getElementById('chart-scatter').getContext('2d');
     if (scatterChart) scatterChart.destroy();
 
-    const urc = userRatingChange ?? 0;
     const valid = [];
     let maxAbsDiff = 1;
 
     opponents.forEach(opp => {
       if (opp.currentRating == null) return;
-      const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
-      const diff = ratingChange - urc;
+      const oppChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
+      const userChangeSinceGame = userCurrentRating - (opp.myRatingAtGame || userCurrentRating);
+      const diff = oppChange - userChangeSinceGame;
       maxAbsDiff = Math.max(maxAbsDiff, Math.abs(diff));
-      valid.push({ ...opp, ratingChange, diff });
+      valid.push({ ...opp, oppChange, userChangeSinceGame, diff });
     });
 
     const colors = valid.map(opp => scatterColor(opp.diff, maxAbsDiff));
-    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.ratingChange }));
-
-    const datasets = [{
-      data,
-      backgroundColor: colors,
-      borderColor: 'transparent',
-      pointRadius: 4.5,
-      pointHoverRadius: 7,
-    }];
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.diff }));
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
-      data: { datasets },
+      data: {
+        datasets: [{
+          data,
+          backgroundColor: colors,
+          borderColor: 'transparent',
+          pointRadius: 4.5,
+          pointHoverRadius: 7,
+        }],
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -285,13 +285,14 @@ const Charts = (() => {
               label: item => {
                 const opp = valid[item.dataIndex];
                 if (!opp) return '';
-                const sign = opp.ratingChange >= 0 ? '+' : '';
-                const diffSign = opp.diff >= 0 ? '+' : '';
+                const os = opp.oppChange >= 0 ? '+' : '';
+                const us = opp.userChangeSinceGame >= 0 ? '+' : '';
+                const ds = opp.diff >= 0 ? '+' : '';
                 const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
                 return [
-                  `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${sign}${opp.ratingChange})`,
-                  `vs you: ${diffSign}${opp.diff}`,
-                  `Played: ${date}`,
+                  `Them: ${opp.ratingAtGame} → ${opp.currentRating} (${os}${opp.oppChange})`,
+                  `You:  ${opp.myRatingAtGame} → ${userCurrentRating} (${us}${opp.userChangeSinceGame})`,
+                  `Diff: ${ds}${opp.diff}  ·  ${date}`,
                 ];
               },
             },
@@ -302,29 +303,20 @@ const Charts = (() => {
                 type: 'line',
                 yMin: 0,
                 yMax: 0,
-                borderColor: 'rgba(255, 255, 255, 0.15)',
+                borderColor: 'rgba(255, 255, 255, 0.2)',
                 borderWidth: 1,
-              },
-              ...(userRatingChange != null ? {
-                youLine: {
-                  type: 'line',
-                  yMin: userRatingChange,
-                  yMax: userRatingChange,
-                  borderColor: 'rgba(231, 76, 60, 0.6)',
-                  borderWidth: 2,
-                  borderDash: [6, 4],
-                  label: {
-                    display: true,
-                    content: `You: ${userRatingChange >= 0 ? '+' : ''}${userRatingChange}`,
-                    position: 'start',
-                    backgroundColor: 'rgba(231, 76, 60, 0.8)',
-                    color: '#fff',
-                    font: { size: 11, weight: 'bold' },
-                    padding: { top: 2, bottom: 2, left: 6, right: 6 },
-                    borderRadius: 3,
-                  },
+                borderDash: [4, 3],
+                label: {
+                  display: true,
+                  content: 'Same as you',
+                  position: 'end',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: TICK_COLOR,
+                  font: { size: 10 },
+                  padding: { top: 2, bottom: 2, left: 6, right: 6 },
+                  borderRadius: 3,
                 },
-              } : {}),
+              },
             },
           },
         },
@@ -337,47 +329,44 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            title: { display: true, text: 'Rating change since your game', color: TICK_COLOR },
+            title: { display: true, text: 'Rating gain vs you (opponent − you)', color: TICK_COLOR },
           },
         },
       },
     });
 
-    renderGainersTable(valid, urc);
+    renderGainersTable(valid, userCurrentRating);
   }
 
-  function renderGainersTable(opponents, userRatingChange) {
+  function renderGainersTable(opponents, userCurrentRating) {
     const container = document.getElementById('top-gainers');
     if (!container) return;
 
-    const urc = userRatingChange ?? 0;
     const sorted = [...opponents]
-      .sort((a, b) => b.ratingChange - a.ratingChange)
+      .sort((a, b) => b.diff - a.diff)
       .slice(0, 10);
 
     const rows = sorted.map((opp, i) => {
-      const sign = opp.ratingChange >= 0 ? '+' : '';
-      const cls = opp.ratingChange >= 0 ? 'gain-positive' : 'gain-negative';
-      const diff = opp.ratingChange - urc;
-      const diffSign = diff >= 0 ? '+' : '';
-      const diffCls = diff >= 0 ? 'gain-positive' : 'gain-negative';
+      const os = opp.oppChange >= 0 ? '+' : '';
+      const oCls = opp.oppChange >= 0 ? 'gain-positive' : 'gain-negative';
+      const ds = opp.diff >= 0 ? '+' : '';
+      const dCls = opp.diff >= 0 ? 'gain-positive' : 'gain-negative';
       const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
       return `<tr>
         <td>${i + 1}</td>
         <td><a href="https://lichess.org/@/${opp.id}" target="_blank" rel="noopener">${opp.username}</a></td>
-        <td>${opp.ratingAtGame}</td>
-        <td>${opp.currentRating}</td>
-        <td class="${cls}">${sign}${opp.ratingChange}</td>
-        <td class="${diffCls}">${diffSign}${diff}</td>
+        <td>${opp.ratingAtGame} → ${opp.currentRating}</td>
+        <td class="${oCls}">${os}${opp.oppChange}</td>
+        <td class="${dCls}">${ds}${opp.diff}</td>
         <td>${date}</td>
       </tr>`;
     }).join('');
 
     container.innerHTML = `
-      <h3 class="top-gainers__title">Top 10 Biggest Gainers</h3>
+      <h3 class="top-gainers__title">Top 10 — Gained Most vs You</h3>
       <table class="top-gainers__table">
         <thead><tr>
-          <th>#</th><th>Player</th><th>Then</th><th>Now</th><th>Change</th><th>vs You</th><th>Played</th>
+          <th>#</th><th>Player</th><th>Rating</th><th>Change</th><th>vs You</th><th>Played</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

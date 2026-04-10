@@ -285,7 +285,7 @@ body {
 }
 
 .chart-card__body--volume {
-  height: 150px;
+  height: 160px;
   padding-top: 0.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -483,11 +483,11 @@ body {
   }
 
   .chart-card__body--main {
-    height: 350px;
+    height: 300px;
   }
 
   .chart-card__body--volume {
-    height: 100px;
+    height: 80px;
   }
 
   .chart-card__body--tall {

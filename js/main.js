@@ -123,11 +123,9 @@
       (done, total) => setProgress(done, total),
     );
 
-    const userFirst = userPoints[0]?.rating ?? 0;
-    const userLast = userPoints[userPoints.length - 1]?.rating ?? 0;
-    const userRatingChange = userLast - userFirst;
+    const userCurrentRating = userPoints[userPoints.length - 1]?.rating ?? 0;
 
-    Charts.renderScatterChart(allWithRatings, userRatingChange);
+    Charts.renderScatterChart(allWithRatings, userCurrentRating);
 
     // 5 ─ Filter to ±10 rating gap, fetch ALL their full histories
     const RATING_GAP = 10;
