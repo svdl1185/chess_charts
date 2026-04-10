@@ -1,5 +1,8 @@
 const LichessAPI = (() => {
   const BASE = 'https://lichess.org';
+  const CONCURRENCY = 5;
+  const RETRY_DELAY = 2000;
+  const MAX_RETRIES = 3;
 
   const VARIANT_MAP = {
     ultraBullet: 'UltraBullet',
@@ -14,17 +17,29 @@ const LichessAPI = (() => {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  async function fetchWithRetry(url, opts = {}, retries = MAX_RETRIES) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const res = await fetch(url, opts);
+      if (res.status === 429) {
+        const wait = RETRY_DELAY * (attempt + 1);
+        await sleep(wait);
+        continue;
+      }
+      if (!res.ok) throw new Error(`Lichess API error ${res.status}`);
+      return res;
+    }
+    throw new Error('Rate limited after retries');
+  }
+
   async function fetchJSON(path) {
-    const res = await fetch(`${BASE}${path}`);
-    if (!res.ok) throw new Error(`Lichess API error ${res.status} for ${path}`);
+    const res = await fetchWithRetry(`${BASE}${path}`);
     return res.json();
   }
 
-  async function fetchNDJSON(path, onProgress) {
-    const res = await fetch(`${BASE}${path}`, {
+  async function fetchNDJSON(path) {
+    const res = await fetchWithRetry(`${BASE}${path}`, {
       headers: { Accept: 'application/x-ndjson' },
     });
-    if (!res.ok) throw new Error(`Lichess API error ${res.status} for ${path}`);
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -40,11 +55,7 @@ const LichessAPI = (() => {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-        try {
-          const obj = JSON.parse(trimmed);
-          items.push(obj);
-          if (onProgress) onProgress(items.length);
-        } catch { /* skip malformed lines */ }
+        try { items.push(JSON.parse(trimmed)); } catch { /* skip */ }
       }
     }
     if (buffer.trim()) {
@@ -102,25 +113,40 @@ const LichessAPI = (() => {
     return [...seen.values()];
   }
 
-  async function getOpponentHistories(opponents, variant, onProgress) {
-    const results = [];
-    for (let i = 0; i < opponents.length; i++) {
-      const opp = opponents[i];
-      try {
-        const history = await getRatingHistory(opp.id);
-        const points = extractVariantHistory(history, variant);
-        results.push({ ...opp, points });
-      } catch {
-        results.push({ ...opp, points: [] });
+  async function runPool(tasks, concurrency, onItemDone) {
+    const results = new Array(tasks.length);
+    let nextIndex = 0;
+    let completed = 0;
+
+    async function worker() {
+      while (nextIndex < tasks.length) {
+        const i = nextIndex++;
+        results[i] = await tasks[i]();
+        completed++;
+        if (onItemDone) onItemDone(completed, tasks.length);
       }
-      if (onProgress) onProgress(i + 1, opponents.length);
-      if (i < opponents.length - 1) await sleep(1000);
     }
+
+    const workers = Array.from(
+      { length: Math.min(concurrency, tasks.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
     return results;
   }
 
-  function getUserProfile(username) {
-    return fetchJSON(`/api/user/${encodeURIComponent(username)}`);
+  async function getOpponentHistories(opponents, variant, onProgress) {
+    const tasks = opponents.map(opp => async () => {
+      try {
+        const history = await getRatingHistory(opp.id);
+        const points = extractVariantHistory(history, variant);
+        return { ...opp, points };
+      } catch {
+        return { ...opp, points: [] };
+      }
+    });
+
+    return runPool(tasks, CONCURRENCY, onProgress);
   }
 
   return {
@@ -130,6 +156,5 @@ const LichessAPI = (() => {
     getUserGames,
     extractOpponents,
     getOpponentHistories,
-    getUserProfile,
   };
 })();

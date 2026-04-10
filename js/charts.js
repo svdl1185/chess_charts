@@ -4,21 +4,10 @@ const Charts = (() => {
   const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
   const TICK_COLOR = '#6b6b8d';
 
-  const OPP_PALETTE = [
-    'rgba(52, 152, 219, ALPHA)',   // blue
-    'rgba(26, 188, 156, ALPHA)',   // teal
-    'rgba(155, 89, 182, ALPHA)',   // purple
-    'rgba(241, 196, 15, ALPHA)',   // yellow
-    'rgba(230, 126, 34, ALPHA)',   // orange
-    'rgba(46, 204, 113, ALPHA)',   // green
-    'rgba(142, 68, 173, ALPHA)',   // violet
-    'rgba(22, 160, 133, ALPHA)',   // dark teal
-    'rgba(41, 128, 185, ALPHA)',   // dark blue
-    'rgba(243, 156, 18, ALPHA)',   // amber
-  ];
+  const OPP_COLOR = 'rgba(100, 180, 255, ALPHA)';
 
-  function oppColor(index, alpha) {
-    return OPP_PALETTE[index % OPP_PALETTE.length].replace('ALPHA', alpha);
+  function oppAlphaColor(alpha) {
+    return OPP_COLOR.replace('ALPHA', alpha);
   }
 
   const baseScaleOpts = {
@@ -26,42 +15,66 @@ const Charts = (() => {
     ticks: { color: TICK_COLOR, font: { size: 11 } },
   };
 
-  const baseTimeAxis = {
-    ...baseScaleOpts,
-    type: 'time',
-    time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
-    adapters: { date: {} },
-  };
-
   let ratingChart = null;
   let opponentsChart = null;
   let scatterChart = null;
 
+  function buildMonthlyVolume(points) {
+    const buckets = new Map();
+    for (const p of points) {
+      const key = `${p.date.getFullYear()}-${String(p.date.getMonth()).padStart(2, '0')}`;
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+    const sorted = [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return sorted.map(([key, count]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { x: new Date(y, m, 15), y: count };
+    });
+  }
+
   /* ────────────────────────────────────────
-     Chart 1: Rating Progression
+     Chart 1: Rating Progression + Volume
   ──────────────────────────────────────── */
 
   function renderRatingChart(userPoints, username) {
     const ctx = document.getElementById('chart-rating').getContext('2d');
     if (ratingChart) ratingChart.destroy();
 
-    const data = userPoints.map(p => ({ x: p.date, y: p.rating }));
+    const ratingData = userPoints.map(p => ({ x: p.date, y: p.rating }));
+    const volumeData = buildMonthlyVolume(userPoints);
 
     ratingChart = new Chart(ctx, {
-      type: 'line',
       data: {
-        datasets: [{
-          label: username,
-          data,
-          borderColor: RED,
-          backgroundColor: RED_BG,
-          borderWidth: 2.5,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: RED,
-          fill: true,
-          tension: 0.3,
-        }],
+        datasets: [
+          {
+            type: 'line',
+            label: username,
+            data: ratingData,
+            borderColor: RED,
+            backgroundColor: RED_BG,
+            borderWidth: 2.5,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: RED,
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y',
+            order: 0,
+          },
+          {
+            type: 'bar',
+            label: 'Games / month',
+            data: volumeData,
+            backgroundColor: 'rgba(100, 180, 255, 0.25)',
+            borderColor: 'rgba(100, 180, 255, 0.4)',
+            borderWidth: 1,
+            borderRadius: 2,
+            yAxisID: 'yVolume',
+            order: 1,
+            barPercentage: 0.9,
+            categoryPercentage: 0.9,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -76,12 +89,13 @@ const Charts = (() => {
             titleColor: '#e8e8f0',
             bodyColor: '#e8e8f0',
             padding: 10,
-            displayColors: false,
+            displayColors: true,
             callbacks: {
-              title: items => items[0]?.raw?.x
-                ? new Date(items[0].raw.x).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                : '',
-              label: item => `Rating: ${item.raw.y}`,
+              title: items => {
+                const raw = items[0]?.raw?.x;
+                if (!raw) return '';
+                return new Date(raw).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+              },
             },
           },
         },
@@ -93,7 +107,15 @@ const Charts = (() => {
           },
           y: {
             ...baseScaleOpts,
+            position: 'left',
             title: { display: true, text: 'Rating', color: TICK_COLOR },
+          },
+          yVolume: {
+            ...baseScaleOpts,
+            position: 'right',
+            title: { display: true, text: 'Games', color: TICK_COLOR },
+            grid: { drawOnChartArea: false },
+            beginAtZero: true,
           },
         },
       },
@@ -110,26 +132,22 @@ const Charts = (() => {
 
     const datasets = [];
 
-    opponents.forEach((opp, i) => {
+    opponents.forEach((opp) => {
       if (!opp.points.length) return;
       const fromDate = opp.gameDate;
       const filtered = opp.points.filter(p => p.date >= fromDate);
       if (filtered.length < 2) return;
 
-      const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
-      const baseAlpha = Math.max(0.12, 0.4 - ratingGap / 1500);
-
       datasets.push({
         label: opp.username,
         data: filtered.map(p => ({ x: p.date, y: p.rating })),
-        borderColor: oppColor(i, baseAlpha),
+        borderColor: oppAlphaColor(0.2),
         borderWidth: 1.5,
         pointRadius: 0,
         pointHoverRadius: 4,
         fill: false,
         tension: 0.25,
-        _oppIndex: i,
-        _baseAlpha: baseAlpha,
+        _isOpp: true,
       });
     });
 
@@ -188,15 +206,15 @@ const Charts = (() => {
           const hoveredIndex = elements.length ? elements[0].datasetIndex : -1;
 
           opponentsChart.data.datasets.forEach((ds, idx) => {
-            if (ds.label.includes('(you)')) return;
-            if (hoveredIndex < 0 || ds.label.includes('(you)')) {
-              ds.borderColor = oppColor(ds._oppIndex ?? idx, ds._baseAlpha ?? 0.25);
+            if (!ds._isOpp) return;
+            if (hoveredIndex < 0) {
+              ds.borderColor = oppAlphaColor(0.2);
               ds.borderWidth = 1.5;
             } else if (idx === hoveredIndex) {
-              ds.borderColor = oppColor(ds._oppIndex ?? idx, 1);
+              ds.borderColor = oppAlphaColor(1);
               ds.borderWidth = 3;
             } else {
-              ds.borderColor = oppColor(ds._oppIndex ?? idx, 0.07);
+              ds.borderColor = oppAlphaColor(0.06);
               ds.borderWidth = 1;
             }
           });
