@@ -42,6 +42,7 @@ const Charts = (() => {
 
     const ratingData = userPoints.map(p => ({ x: p.date, y: p.rating }));
     const volumeData = buildMonthlyVolume(userPoints);
+    const maxVolume = Math.max(...volumeData.map(v => v.y), 1);
 
     ratingChart = new Chart(ctx, {
       data: {
@@ -116,6 +117,7 @@ const Charts = (() => {
             title: { display: true, text: 'Games', color: TICK_COLOR },
             grid: { drawOnChartArea: false },
             beginAtZero: true,
+            max: maxVolume * 2,
           },
         },
       },
@@ -228,12 +230,38 @@ const Charts = (() => {
      Chart 3: Improvement Scatter Plot
   ──────────────────────────────────────── */
 
-  function renderScatterChart(opponents, userRatingChange, userGamesPlayed) {
+  function lerpColor(t) {
+    // t: -1 (worst decline) → 0 (no change) → +1 (best improvement)
+    // amber(243,156,18) → white midpoint → green(46,204,113)
+    const clamped = Math.max(-1, Math.min(1, t));
+    let r, g, b;
+    if (clamped <= 0) {
+      const s = -clamped;
+      r = Math.round(243 * s + 160 * (1 - s));
+      g = Math.round(156 * s + 160 * (1 - s));
+      b = Math.round(18 * s + 160 * (1 - s));
+    } else {
+      const s = clamped;
+      r = Math.round(46 * s + 160 * (1 - s));
+      g = Math.round(204 * s + 160 * (1 - s));
+      b = Math.round(113 * s + 160 * (1 - s));
+    }
+    return { r, g, b };
+  }
+
+  function renderScatterChart(opponents) {
     const ctx = document.getElementById('chart-scatter').getContext('2d');
     if (scatterChart) scatterChart.destroy();
 
-    const improved = [];
-    const declined = [];
+    const points = [];
+    let maxAbsChange = 1;
+
+    opponents.forEach(opp => {
+      if (!opp.points.length) return;
+      const lastRating = opp.points[opp.points.length - 1].rating;
+      const ratingChange = lastRating - (opp.ratingAtGame || lastRating);
+      maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
+    });
 
     opponents.forEach(opp => {
       if (!opp.points.length) return;
@@ -244,51 +272,37 @@ const Charts = (() => {
       const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
       const dotSize = Math.max(4, 14 - ratingGap / 150);
 
-      const point = {
+      const t = ratingChange / maxAbsChange;
+      const c = lerpColor(t);
+
+      points.push({
         x: gamesCount,
         y: ratingChange,
         username: opp.username,
         ratingThen: opp.ratingAtGame,
         ratingNow: lastRating,
         r: dotSize,
-      };
-
-      if (ratingChange >= userRatingChange) {
-        improved.push(point);
-      } else {
-        declined.push(point);
-      }
+        _bgColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`,
+        _borderColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`,
+      });
     });
 
     scatterChart = new Chart(ctx, {
       type: 'bubble',
       data: {
-        datasets: [
-          {
-            label: 'Improved more than you',
-            data: improved,
-            backgroundColor: 'rgba(46, 204, 113, 0.55)',
-            borderColor: 'rgba(46, 204, 113, 0.8)',
-            borderWidth: 1,
-            hoverBackgroundColor: 'rgba(46, 204, 113, 0.9)',
-          },
-          {
-            label: 'Improved less than you',
-            data: declined,
-            backgroundColor: 'rgba(243, 156, 18, 0.55)',
-            borderColor: 'rgba(243, 156, 18, 0.8)',
-            borderWidth: 1,
-            hoverBackgroundColor: 'rgba(243, 156, 18, 0.9)',
-          },
-        ],
+        datasets: [{
+          label: 'Opponents',
+          data: points,
+          backgroundColor: points.map(p => p._bgColor),
+          borderColor: points.map(p => p._borderColor),
+          borderWidth: 1,
+        }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            labels: { color: '#e8e8f0', font: { size: 12 }, usePointStyle: true, pointStyle: 'circle' },
-          },
+          legend: { display: false },
           tooltip: {
             backgroundColor: '#1a1a2e',
             borderColor: '#2a2a4a',
@@ -304,42 +318,6 @@ const Charts = (() => {
                   `Rating: ${p.ratingThen} → ${p.ratingNow} (${p.y >= 0 ? '+' : ''}${p.y})`,
                   `Data points: ${p.x}`,
                 ];
-              },
-            },
-          },
-          annotation: {
-            annotations: {
-              xLine: {
-                type: 'line',
-                xMin: userGamesPlayed,
-                xMax: userGamesPlayed,
-                borderColor: 'rgba(231, 76, 60, 0.6)',
-                borderWidth: 2,
-                borderDash: [6, 4],
-                label: {
-                  display: true,
-                  content: 'Your activity',
-                  position: 'start',
-                  color: RED,
-                  font: { size: 11, weight: 'bold' },
-                  backgroundColor: 'rgba(15, 15, 26, 0.8)',
-                },
-              },
-              yLine: {
-                type: 'line',
-                yMin: userRatingChange,
-                yMax: userRatingChange,
-                borderColor: 'rgba(231, 76, 60, 0.6)',
-                borderWidth: 2,
-                borderDash: [6, 4],
-                label: {
-                  display: true,
-                  content: `Your change: ${userRatingChange >= 0 ? '+' : ''}${userRatingChange}`,
-                  position: 'start',
-                  color: RED,
-                  font: { size: 11, weight: 'bold' },
-                  backgroundColor: 'rgba(15, 15, 26, 0.8)',
-                },
               },
             },
           },

@@ -114,13 +114,7 @@
     setPhase('Rendering charts...');
 
     Charts.renderOpponentsChart(userPoints, opponentData, username);
-
-    const userFirst = userPoints[0].rating;
-    const userLast = userPoints[userPoints.length - 1].rating;
-    const userRatingChange = userLast - userFirst;
-    const userGamesPlayed = userPoints.length;
-
-    Charts.renderScatterChart(opponentData, userRatingChange, userGamesPlayed);
+    Charts.renderScatterChart(opponentData);
 
     hideLoading();
   }
