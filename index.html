@@ -66,6 +66,17 @@
     </div>
 
     <section id="charts-section" class="charts-section hidden">
+      <div class="chart-card" id="card-scatter">
+        <div class="chart-card__header">
+          <h2 class="chart-card__title">Who Improved More?</h2>
+          <p class="chart-card__desc">Every opponent you've faced. <span style="color:#2ecc71">Green</span> = improved, <span style="color:#f39c12">amber</span> = declined since your game. Y-axis = their total games.</p>
+        </div>
+        <div class="chart-card__body chart-card__body--tall">
+          <canvas id="chart-scatter"></canvas>
+        </div>
+        <div id="top-gainers" class="top-gainers"></div>
+      </div>
+
       <div class="chart-card" id="card-main">
         <div class="chart-card__header">
           <h2 class="chart-card__title">Rating Journey</h2>
@@ -78,17 +89,6 @@
         <div class="chart-card__body chart-card__body--volume">
           <canvas id="chart-volume"></canvas>
         </div>
-      </div>
-
-      <div class="chart-card" id="card-scatter">
-        <div class="chart-card__header">
-          <h2 class="chart-card__title">Who Improved More?</h2>
-          <p class="chart-card__desc">Every opponent you've faced. <span style="color:#2ecc71">Green</span> = improved, <span style="color:#f39c12">amber</span> = declined since your game.</p>
-        </div>
-        <div class="chart-card__body chart-card__body--tall">
-          <canvas id="chart-scatter"></canvas>
-        </div>
-        <div id="top-gainers" class="top-gainers"></div>
       </div>
     </section>
 

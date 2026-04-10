@@ -191,11 +191,15 @@ const Charts = (() => {
     for (const opp of opponents) {
       if (!opp.points || !opp.points.length) continue;
       const filtered = opp.points.filter(p => p.date >= opp.gameDate);
-      if (filtered.length < 2) continue;
+      const lineData = [
+        { x: opp.gameDate, y: opp.ratingAtGame },
+        ...filtered.map(p => ({ x: p.date, y: p.rating })),
+      ];
+      if (lineData.length < 2) continue;
 
       mainChart.data.datasets.push({
         label: opp.username,
-        data: filtered.map(p => ({ x: p.date, y: p.rating })),
+        data: lineData,
         borderColor: oppAlpha(ba),
         borderWidth: 1.5,
         pointRadius: 0,
@@ -236,7 +240,7 @@ const Charts = (() => {
     let maxAbsChange = 1;
 
     opponents.forEach(opp => {
-      if (opp.currentRating == null) return;
+      if (opp.currentRating == null || opp.totalGames == null) return;
       const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
       valid.push({ ...opp, ratingChange });
@@ -245,10 +249,10 @@ const Charts = (() => {
     const colors = valid.map(opp => {
       const t = opp.ratingChange / maxAbsChange;
       const c = lerpColor(t);
-      return `rgba(${c.r}, ${c.g}, ${c.b}, 0.5)`;
+      return `rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`;
     });
 
-    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.ratingChange }));
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.totalGames }));
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
@@ -257,8 +261,8 @@ const Charts = (() => {
           data,
           backgroundColor: colors,
           borderColor: 'transparent',
-          pointRadius: 2.5,
-          pointHoverRadius: 2.5,
+          pointRadius: 4.5,
+          pointHoverRadius: 6,
         }],
       },
       options: {
@@ -278,7 +282,7 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            title: { display: true, text: 'Rating change since your game', color: TICK_COLOR },
+            title: { display: true, text: "Opponent's total games", color: TICK_COLOR },
           },
         },
       },

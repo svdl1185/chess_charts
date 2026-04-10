@@ -148,7 +148,7 @@ const LichessAPI = (() => {
         for (const u of users) {
           const perf = u.perfs?.[perfKey];
           if (perf) {
-            ratingMap.set(u.id.toLowerCase(), perf.rating);
+            ratingMap.set(u.id.toLowerCase(), { rating: perf.rating, games: perf.games || 0 });
           }
         }
       } catch { /* skip failed batch */ }
@@ -156,10 +156,14 @@ const LichessAPI = (() => {
       if (onProgress) onProgress(Math.min(done, opponents.length), opponents.length);
     }
 
-    return opponents.map(opp => ({
-      ...opp,
-      currentRating: ratingMap.get(opp.id.toLowerCase()) ?? null,
-    }));
+    return opponents.map(opp => {
+      const info = ratingMap.get(opp.id.toLowerCase());
+      return {
+        ...opp,
+        currentRating: info?.rating ?? null,
+        totalGames: info?.games ?? null,
+      };
+    });
   }
 
   async function runPool(tasks, concurrency, onItemDone) {
