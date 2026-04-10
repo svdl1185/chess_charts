@@ -125,6 +125,36 @@
 
     const userCurrentRating = userPoints[userPoints.length - 1]?.rating ?? 0;
 
+    // Compute games-since-encounter diff for scatter Y-axis
+    const gameTimestamps = games.map(g => g.createdAt).sort((a, b) => a - b);
+    function userGamesSince(ts) {
+      let lo = 0, hi = gameTimestamps.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (gameTimestamps[mid] < ts) lo = mid + 1;
+        else hi = mid;
+      }
+      return gameTimestamps.length - lo;
+    }
+
+    const now = Date.now();
+    for (const opp of allWithRatings) {
+      const gameTs = opp.gameDate.getTime();
+      opp.userGamesSince = userGamesSince(gameTs);
+      if (opp.totalGames != null && opp.accountCreatedAt) {
+        const accountAgeDays = (now - opp.accountCreatedAt) / 86400000;
+        const daysSinceGame = (now - gameTs) / 86400000;
+        opp.estOppGamesSince = accountAgeDays > 0
+          ? Math.round(opp.totalGames * (daysSinceGame / accountAgeDays))
+          : 0;
+      } else {
+        opp.estOppGamesSince = null;
+      }
+      opp.gamesDiff = opp.estOppGamesSince != null
+        ? opp.estOppGamesSince - opp.userGamesSince
+        : null;
+    }
+
     Charts.renderScatterChart(allWithRatings, userCurrentRating);
 
     // 5 ─ Filter to ±10 rating gap, fetch ALL their full histories

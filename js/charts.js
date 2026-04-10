@@ -241,7 +241,7 @@ const Charts = (() => {
     let maxAbsDiff = 1;
 
     opponents.forEach(opp => {
-      if (opp.currentRating == null) return;
+      if (opp.currentRating == null || opp.gamesDiff == null) return;
       const oppChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       const userChangeSinceGame = userCurrentRating - (opp.myRatingAtGame || userCurrentRating);
       const diff = oppChange - userChangeSinceGame;
@@ -250,7 +250,7 @@ const Charts = (() => {
     });
 
     const colors = valid.map(opp => scatterColor(opp.diff, maxAbsDiff));
-    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.diff }));
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.gamesDiff }));
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
@@ -289,10 +289,12 @@ const Charts = (() => {
                 const us = opp.userChangeSinceGame >= 0 ? '+' : '';
                 const ds = opp.diff >= 0 ? '+' : '';
                 const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                const gds = opp.gamesDiff >= 0 ? '+' : '';
                 return [
-                  `Them: ${opp.ratingAtGame} → ${opp.currentRating} (${os}${opp.oppChange})`,
-                  `You:  ${opp.myRatingAtGame} → ${userCurrentRating} (${us}${opp.userChangeSinceGame})`,
-                  `Diff: ${ds}${opp.diff}  ·  ${date}`,
+                  `Games since: ~${opp.estOppGamesSince} them vs ${opp.userGamesSince} you (${gds}${opp.gamesDiff})`,
+                  `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${os}${opp.oppChange})`,
+                  `You:    ${opp.myRatingAtGame} → ${userCurrentRating} (${us}${opp.userChangeSinceGame})`,
+                  `Rating diff vs you: ${ds}${opp.diff}  ·  ${date}`,
                 ];
               },
             },
@@ -303,19 +305,8 @@ const Charts = (() => {
                 type: 'line',
                 yMin: 0,
                 yMax: 0,
-                borderColor: 'rgba(255, 255, 255, 0.2)',
+                borderColor: 'rgba(255, 255, 255, 0.15)',
                 borderWidth: 1,
-                borderDash: [4, 3],
-                label: {
-                  display: true,
-                  content: 'Same as you',
-                  position: 'end',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  color: TICK_COLOR,
-                  font: { size: 10 },
-                  padding: { top: 2, bottom: 2, left: 6, right: 6 },
-                  borderRadius: 3,
-                },
               },
             },
           },
@@ -329,7 +320,7 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            title: { display: true, text: 'Rating gain vs you (opponent − you)', color: TICK_COLOR },
+            title: { display: true, text: "Opponent's games − your games (since encounter)", color: TICK_COLOR },
           },
         },
       },
