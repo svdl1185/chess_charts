@@ -233,7 +233,7 @@ const Charts = (() => {
     let maxAbsChange = 1;
 
     opponents.forEach(opp => {
-      if (opp.currentRating == null || opp.totalGames == null) return;
+      if (opp.currentRating == null || opp.gamesDiff == null) return;
       const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
       valid.push({ ...opp, ratingChange });
@@ -241,7 +241,7 @@ const Charts = (() => {
 
     const colors = valid.map(opp => scatterColor(opp.ratingChange, maxAbsChange));
 
-    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.totalGames }));
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.gamesDiff }));
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
@@ -277,10 +277,11 @@ const Charts = (() => {
                 const opp = valid[item.dataIndex];
                 if (!opp) return '';
                 const sign = opp.ratingChange >= 0 ? '+' : '';
+                const diffSign = opp.gamesDiff >= 0 ? '+' : '';
                 const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
                 return [
                   `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${sign}${opp.ratingChange})`,
-                  `Total games: ${opp.totalGames.toLocaleString()}`,
+                  `Games since: ~${opp.estOppGamesSince} them vs ${opp.userGamesSince} you (${diffSign}${opp.gamesDiff})`,
                   `Played: ${date}`,
                 ];
               },
@@ -296,7 +297,7 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            title: { display: true, text: "Opponent's total games", color: TICK_COLOR },
+            title: { display: true, text: "Opponent's games − your games (since encounter)", color: TICK_COLOR },
           },
         },
       },

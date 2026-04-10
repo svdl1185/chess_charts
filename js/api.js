@@ -148,7 +148,11 @@ const LichessAPI = (() => {
         for (const u of users) {
           const perf = u.perfs?.[perfKey];
           if (perf) {
-            ratingMap.set(u.id.toLowerCase(), { rating: perf.rating, games: perf.games || 0 });
+            ratingMap.set(u.id.toLowerCase(), {
+              rating: perf.rating,
+              games: perf.games || 0,
+              createdAt: u.createdAt || 0,
+            });
           }
         }
       } catch { /* skip failed batch */ }
@@ -162,6 +166,7 @@ const LichessAPI = (() => {
         ...opp,
         currentRating: info?.rating ?? null,
         totalGames: info?.games ?? null,
+        accountCreatedAt: info?.createdAt ?? null,
       };
     });
   }
