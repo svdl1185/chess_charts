@@ -1,6 +1,6 @@
 const LichessAPI = (() => {
   const BASE = 'https://lichess.org';
-  const CONCURRENCY = 5;
+  const CONCURRENCY = 10;
   const BATCH_SIZE = 300;
   const RETRY_DELAY = 2000;
   const MAX_RETRIES = 3;
@@ -172,7 +172,7 @@ const LichessAPI = (() => {
         const i = nextIndex++;
         results[i] = await tasks[i]();
         completed++;
-        if (onItemDone) onItemDone(completed, tasks.length);
+        if (onItemDone) onItemDone(completed, tasks.length, results[i]);
       }
     }
 

@@ -279,6 +279,27 @@ body {
   height: 450px;
 }
 
+.chart-card__body--main {
+  height: 400px;
+  padding-bottom: 0;
+}
+
+.chart-card__body--volume {
+  height: 110px;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chart-card__stats {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.chart-card__stats.hidden {
+  display: none;
+}
+
 .chart-card__body canvas {
   width: 100% !important;
   height: 100% !important;
@@ -389,6 +410,14 @@ body {
   .chart-card__body {
     height: 280px;
     padding: 0.75rem 0.75rem 1rem;
+  }
+
+  .chart-card__body--main {
+    height: 300px;
+  }
+
+  .chart-card__body--volume {
+    height: 80px;
   }
 
   .chart-card__body--tall {

@@ -66,29 +66,24 @@
     </div>
 
     <section id="charts-section" class="charts-section hidden">
-      <div class="chart-card" id="card-rating">
+      <div class="chart-card" id="card-main">
         <div class="chart-card__header">
-          <h2 class="chart-card__title">Your Rating Progression</h2>
+          <h2 class="chart-card__title">Rating Journey</h2>
+          <p class="chart-card__desc">Your line in <span class="text-red">red</span> — opponents within ±10 rating at game time. Hover to highlight.</p>
+          <p id="stats-line" class="chart-card__stats hidden"></p>
         </div>
-        <div class="chart-card__body">
-          <canvas id="chart-rating"></canvas>
+        <div class="chart-card__body chart-card__body--main">
+          <canvas id="chart-main"></canvas>
         </div>
-      </div>
-
-      <div class="chart-card" id="card-opponents">
-        <div class="chart-card__header">
-          <h2 class="chart-card__title">Opponent Rating Journeys</h2>
-          <p class="chart-card__desc">Your line in <span class="text-red">red</span> — opponents within 50 rating points at game time. Hover to highlight.</p>
-        </div>
-        <div class="chart-card__body chart-card__body--tall">
-          <canvas id="chart-opponents"></canvas>
+        <div class="chart-card__body chart-card__body--volume">
+          <canvas id="chart-volume"></canvas>
         </div>
       </div>
 
       <div class="chart-card" id="card-scatter">
         <div class="chart-card__header">
           <h2 class="chart-card__title">Who Improved More?</h2>
-          <p class="chart-card__desc">Every opponent you've ever played. <span style="color:#2ecc71">Green</span> = improved, <span style="color:#f39c12">amber</span> = declined since your game.</p>
+          <p class="chart-card__desc">Every opponent you've faced. <span style="color:#2ecc71">Green</span> = improved, <span style="color:#f39c12">amber</span> = declined since your game.</p>
         </div>
         <div class="chart-card__body chart-card__body--tall">
           <canvas id="chart-scatter"></canvas>

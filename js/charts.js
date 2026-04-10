@@ -3,175 +3,62 @@ const Charts = (() => {
   const RED_BG = 'rgba(231, 76, 60, 0.12)';
   const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
   const TICK_COLOR = '#6b6b8d';
+  const OPP_TPL = 'rgba(100, 180, 255, ALPHA)';
 
-  const OPP_COLOR = 'rgba(100, 180, 255, ALPHA)';
-
-  function oppAlphaColor(alpha) {
-    return OPP_COLOR.replace('ALPHA', alpha);
+  function oppAlpha(a) {
+    return OPP_TPL.replace('ALPHA', a);
   }
 
-  const baseScaleOpts = {
-    grid: { color: GRID_COLOR, drawBorder: false },
+  const baseScale = {
+    grid: { color: GRID_COLOR },
     ticks: { color: TICK_COLOR, font: { size: 11 } },
+    border: { display: false },
   };
 
-  let ratingChart = null;
-  let opponentsChart = null;
+  let mainChart = null;
+  let volumeChart = null;
   let scatterChart = null;
 
-  function buildMonthlyVolume(points) {
+  function buildMonthlyVolumeFromGames(games) {
     const buckets = new Map();
-    for (const p of points) {
-      const key = `${p.date.getFullYear()}-${String(p.date.getMonth()).padStart(2, '0')}`;
+    for (const g of games) {
+      const d = new Date(g.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       buckets.set(key, (buckets.get(key) || 0) + 1);
     }
-    const sorted = [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    return sorted.map(([key, count]) => {
-      const [y, m] = key.split('-').map(Number);
-      return { x: new Date(y, m, 15), y: count };
-    });
+    return [...buckets.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, count]) => {
+        const [y, m] = key.split('-').map(Number);
+        return { x: new Date(y, m, 15), y: count };
+      });
   }
 
-  /* ────────────────────────────────────────
-     Chart 1: Rating Progression + Volume
-  ──────────────────────────────────────── */
+  /* ─── Main chart (user line) + Volume bars ─── */
 
-  function renderRatingChart(userPoints, username) {
-    const ctx = document.getElementById('chart-rating').getContext('2d');
-    if (ratingChart) ratingChart.destroy();
+  function renderMainChart(userPoints, username, games) {
+    const ctxMain = document.getElementById('chart-main').getContext('2d');
+    if (mainChart) mainChart.destroy();
 
     const ratingData = userPoints.map(p => ({ x: p.date, y: p.rating }));
-    const volumeData = buildMonthlyVolume(userPoints);
-    const maxVolume = Math.max(...volumeData.map(v => v.y), 1);
 
-    ratingChart = new Chart(ctx, {
-      data: {
-        datasets: [
-          {
-            type: 'line',
-            label: username,
-            data: ratingData,
-            borderColor: RED,
-            backgroundColor: RED_BG,
-            borderWidth: 2.5,
-            pointRadius: 0,
-            pointHoverRadius: 5,
-            pointHoverBackgroundColor: RED,
-            fill: true,
-            tension: 0.3,
-            yAxisID: 'y',
-            order: 0,
-          },
-          {
-            type: 'bar',
-            label: 'Games / month',
-            data: volumeData,
-            backgroundColor: 'rgba(100, 180, 255, 0.25)',
-            borderColor: 'rgba(100, 180, 255, 0.4)',
-            borderWidth: 1,
-            borderRadius: 2,
-            yAxisID: 'yVolume',
-            order: 1,
-            barPercentage: 0.9,
-            categoryPercentage: 0.9,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1a1a2e',
-            borderColor: '#2a2a4a',
-            borderWidth: 1,
-            titleColor: '#e8e8f0',
-            bodyColor: '#e8e8f0',
-            padding: 10,
-            displayColors: true,
-            callbacks: {
-              title: items => {
-                const raw = items[0]?.raw?.x;
-                if (!raw) return '';
-                return new Date(raw).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-              },
-            },
-          },
-        },
-        scales: {
-          x: {
-            ...baseScaleOpts,
-            type: 'time',
-            time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
-          },
-          y: {
-            ...baseScaleOpts,
-            position: 'left',
-            title: { display: true, text: 'Rating', color: TICK_COLOR },
-          },
-          yVolume: {
-            ...baseScaleOpts,
-            position: 'right',
-            title: { display: true, text: 'Games', color: TICK_COLOR },
-            grid: { drawOnChartArea: false },
-            beginAtZero: true,
-            max: maxVolume * 2,
-          },
-        },
-      },
-    });
-  }
-
-  /* ────────────────────────────────────────
-     Chart 2: Opponent Rating Progressions
-  ──────────────────────────────────────── */
-
-  function renderOpponentsChart(userPoints, opponents, username) {
-    const ctx = document.getElementById('chart-opponents').getContext('2d');
-    if (opponentsChart) opponentsChart.destroy();
-
-    const datasets = [];
-
-    opponents.forEach((opp) => {
-      if (!opp.points.length) return;
-      const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
-      if (ratingGap > 50) return;
-      const fromDate = opp.gameDate;
-      const filtered = opp.points.filter(p => p.date >= fromDate);
-      if (filtered.length < 2) return;
-
-      datasets.push({
-        label: opp.username,
-        data: filtered.map(p => ({ x: p.date, y: p.rating })),
-        borderColor: oppAlphaColor(0.2),
-        borderWidth: 1.5,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        fill: false,
-        tension: 0.25,
-        _isOpp: true,
-      });
-    });
-
-    datasets.push({
-      label: `${username} (you)`,
-      data: userPoints.map(p => ({ x: p.date, y: p.rating })),
-      borderColor: RED,
-      backgroundColor: RED_BG,
-      borderWidth: 3,
-      pointRadius: 0,
-      pointHoverRadius: 5,
-      pointHoverBackgroundColor: RED,
-      fill: false,
-      tension: 0.3,
-      order: -1,
-    });
-
-    opponentsChart = new Chart(ctx, {
+    mainChart = new Chart(ctxMain, {
       type: 'line',
-      data: { datasets },
+      data: {
+        datasets: [{
+          label: `${username} (you)`,
+          data: ratingData,
+          borderColor: RED,
+          backgroundColor: RED_BG,
+          borderWidth: 3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: RED,
+          fill: false,
+          tension: 0.3,
+          order: -1,
+        }],
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -196,45 +83,135 @@ const Charts = (() => {
         },
         scales: {
           x: {
-            ...baseScaleOpts,
+            ...baseScale,
             type: 'time',
             time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
+            ticks: { ...baseScale.ticks, display: false },
           },
           y: {
-            ...baseScaleOpts,
+            ...baseScale,
+            position: 'left',
             title: { display: true, text: 'Rating', color: TICK_COLOR },
           },
         },
         onHover: (event, elements) => {
-          if (!opponentsChart) return;
-          const hoveredIndex = elements.length ? elements[0].datasetIndex : -1;
+          if (!mainChart) return;
+          const oppDs = mainChart.data.datasets.filter(ds => ds._isOpp);
+          if (!oppDs.length || oppDs.length > 150) return;
 
-          opponentsChart.data.datasets.forEach((ds, idx) => {
+          const ba = Math.max(0.05, Math.min(0.3, 30 / oppDs.length));
+          const hIdx = elements.length ? elements[0].datasetIndex : -1;
+
+          mainChart.data.datasets.forEach((ds, idx) => {
             if (!ds._isOpp) return;
-            if (hoveredIndex < 0) {
-              ds.borderColor = oppAlphaColor(0.2);
+            if (hIdx < 0) {
+              ds.borderColor = oppAlpha(ba);
               ds.borderWidth = 1.5;
-            } else if (idx === hoveredIndex) {
-              ds.borderColor = oppAlphaColor(1);
+            } else if (idx === hIdx) {
+              ds.borderColor = oppAlpha(1);
               ds.borderWidth = 3;
             } else {
-              ds.borderColor = oppAlphaColor(0.06);
+              ds.borderColor = oppAlpha(0.04);
               ds.borderWidth = 1;
             }
           });
-          opponentsChart.update('none');
+          mainChart.update('none');
+        },
+      },
+    });
+
+    /* Volume chart */
+    const ctxVol = document.getElementById('chart-volume').getContext('2d');
+    if (volumeChart) volumeChart.destroy();
+
+    const volumeData = buildMonthlyVolumeFromGames(games);
+
+    volumeChart = new Chart(ctxVol, {
+      type: 'bar',
+      data: {
+        datasets: [{
+          label: 'Games / month',
+          data: volumeData,
+          backgroundColor: 'rgba(100, 180, 255, 0.25)',
+          borderColor: 'rgba(100, 180, 255, 0.4)',
+          borderWidth: 1,
+          borderRadius: 2,
+          barPercentage: 0.9,
+          categoryPercentage: 0.9,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1a2e',
+            borderColor: '#2a2a4a',
+            borderWidth: 1,
+            titleColor: '#e8e8f0',
+            bodyColor: '#e8e8f0',
+            padding: 8,
+            callbacks: {
+              title: items => {
+                const raw = items[0]?.raw?.x;
+                if (!raw) return '';
+                return new Date(raw).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+              },
+              label: item => `${item.raw.y} games`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ...baseScale,
+            type: 'time',
+            time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
+          },
+          y: {
+            ...baseScale,
+            position: 'right',
+            beginAtZero: true,
+            grid: { drawOnChartArea: false },
+            ticks: { ...baseScale.ticks, maxTicksLimit: 3 },
+          },
         },
       },
     });
   }
 
-  /* ────────────────────────────────────────
-     Chart 3: Improvement Scatter Plot
-  ──────────────────────────────────────── */
+  /* ─── Add opponent lines to existing main chart ─── */
+
+  function addOpponentsToMainChart(opponents, expectedTotal) {
+    if (!mainChart) return;
+
+    const total = expectedTotal || opponents.length;
+    const ba = Math.max(0.05, Math.min(0.3, 30 / Math.max(1, total)));
+
+    for (const opp of opponents) {
+      if (!opp.points || !opp.points.length) continue;
+      const filtered = opp.points.filter(p => p.date >= opp.gameDate);
+      if (filtered.length < 2) continue;
+
+      mainChart.data.datasets.push({
+        label: opp.username,
+        data: filtered.map(p => ({ x: p.date, y: p.rating })),
+        borderColor: oppAlpha(ba),
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: false,
+        tension: 0.25,
+        _isOpp: true,
+      });
+    }
+
+    mainChart.update('none');
+  }
+
+  /* ─── Scatter: Improvement plot ─── */
 
   function lerpColor(t) {
-    // t: -1 (worst decline) → 0 (no change) → +1 (best improvement)
-    // amber(243,156,18) → white midpoint → green(46,204,113)
     const clamped = Math.max(-1, Math.min(1, t));
     let r, g, b;
     if (clamped <= 0) {
@@ -294,13 +271,13 @@ const Charts = (() => {
         },
         scales: {
           x: {
-            ...baseScaleOpts,
+            ...baseScale,
             type: 'time',
             time: { unit: 'month', tooltipFormat: 'MMM yyyy' },
             title: { display: true, text: 'Date you played this opponent', color: TICK_COLOR },
           },
           y: {
-            ...baseScaleOpts,
+            ...baseScale,
             title: { display: true, text: 'Rating change since your game', color: TICK_COLOR },
           },
         },
@@ -344,12 +321,14 @@ const Charts = (() => {
   }
 
   function destroyAll() {
-    if (ratingChart) { ratingChart.destroy(); ratingChart = null; }
-    if (opponentsChart) { opponentsChart.destroy(); opponentsChart = null; }
+    if (mainChart) { mainChart.destroy(); mainChart = null; }
+    if (volumeChart) { volumeChart.destroy(); volumeChart = null; }
     if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
     const tg = document.getElementById('top-gainers');
     if (tg) tg.innerHTML = '';
+    const sl = document.getElementById('stats-line');
+    if (sl) { sl.textContent = ''; sl.classList.add('hidden'); }
   }
 
-  return { renderRatingChart, renderOpponentsChart, renderScatterChart, destroyAll };
+  return { renderMainChart, addOpponentsToMainChart, renderScatterChart, destroyAll };
 })();

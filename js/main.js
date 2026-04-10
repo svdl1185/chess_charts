@@ -1,6 +1,4 @@
 (() => {
-  const CHART2_MAX_OPPONENTS = 50;
-
   const form = document.getElementById('analyze-form');
   const usernameInput = document.getElementById('username');
   const variantSelect = document.getElementById('variant');
@@ -10,6 +8,7 @@
   const loadingDetail = document.getElementById('loading-detail');
   const progressFill = document.getElementById('progress-fill');
   const chartsSection = document.getElementById('charts-section');
+  const statsLine = document.getElementById('stats-line');
 
   function showLoading() {
     loadingOverlay.classList.remove('hidden');
@@ -57,30 +56,27 @@
     Charts.destroyAll();
     showLoading();
 
-    // Phase 1: rating history (single call)
+    const variantLabel = LichessAPI.VARIANT_MAP[variant] || variant;
+
+    // 1 ─ Rating history
     setPhase('Fetching your rating history...');
     setProgressIndeterminate('');
 
     let ratingHistory;
     try {
       ratingHistory = await LichessAPI.getRatingHistory(username);
-    } catch (e) {
+    } catch {
       showError(`Could not find user "${username}". Check the spelling and try again.`);
       return;
     }
 
     const userPoints = LichessAPI.extractVariantHistory(ratingHistory, variant);
     if (!userPoints.length) {
-      showError(`No ${variant} rating data found for "${username}".`);
+      showError(`No ${variantLabel} rating data found for "${username}".`);
       return;
     }
 
-    // Show chart 1 immediately
-    chartsSection.classList.remove('hidden');
-    restartCardAnimations();
-    Charts.renderRatingChart(userPoints, username);
-
-    // Phase 2: stream ALL games
+    // 2 ─ Stream ALL rated games
     setPhase('Loading all your games...');
     const games = [];
     const gamesPath = `/api/games/user/${encodeURIComponent(username)}?perfType=${variant}&rated=true&sort=dateDesc`;
@@ -104,40 +100,71 @@
       return;
     }
 
-    const allOpponents = LichessAPI.extractOpponents(games, username);
-    setPhase(`Found ${allOpponents.length.toLocaleString()} unique opponents`);
+    // 3 ─ Show main chart immediately (user line + volume from actual games)
+    chartsSection.classList.remove('hidden');
+    restartCardAnimations();
+    Charts.renderMainChart(userPoints, username, games);
 
-    // Phase 3: batch-fetch current ratings for ALL opponents (300 per call)
+    const allOpponents = LichessAPI.extractOpponents(games, username);
+
+    // 4 ─ Batch-fetch current ratings for ALL opponents (scatter plot)
     setPhase('Fetching current ratings...');
     setProgress(0, allOpponents.length);
 
     const allWithRatings = await LichessAPI.batchFetchCurrentRatings(
       allOpponents,
       variant,
-      (done, total) => {
-        setPhase(`Fetching current ratings...`);
-        setProgress(done, total);
-      }
+      (done, total) => setProgress(done, total),
     );
 
-    // Render chart 3 (scatter) with ALL opponents
     Charts.renderScatterChart(allWithRatings);
 
-    // Phase 4: fetch full rating histories for chart 2 subset
-    const chart2Opponents = allOpponents.slice(0, CHART2_MAX_OPPONENTS);
-    setPhase(`Loading rating histories (${chart2Opponents.length} recent opponents)...`);
-    setProgress(0, chart2Opponents.length);
+    // 5 ─ Filter to ±10 rating gap, fetch ALL their full histories
+    const RATING_GAP = 10;
+    const closeOpponents = allOpponents.filter(opp => {
+      const gap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
+      return gap <= RATING_GAP;
+    });
 
-    const opponentData = await LichessAPI.getOpponentHistories(
-      chart2Opponents,
+    const totalClose = closeOpponents.length;
+    setPhase(`Loading ${totalClose.toLocaleString()} opponent histories (within ±${RATING_GAP})...`);
+    setProgress(0, totalClose);
+
+    const FLUSH_EVERY = 10;
+    let pendingOpps = [];
+
+    const oppData = await LichessAPI.getOpponentHistories(
+      closeOpponents,
       variant,
-      (current, total) => {
-        setPhase(`Loading rating history ${current} of ${total}...`);
+      (current, total, result) => {
+        setPhase(`Loading opponent history ${current.toLocaleString()} / ${total.toLocaleString()}...`);
         setProgress(current, total);
-      }
+        if (result) {
+          pendingOpps.push(result);
+          if (pendingOpps.length >= FLUSH_EVERY) {
+            Charts.addOpponentsToMainChart(pendingOpps, totalClose);
+            pendingOpps = [];
+          }
+        }
+      },
     );
 
-    Charts.renderOpponentsChart(userPoints, opponentData, username);
+    // 6 ─ Flush any remaining buffered opponents
+    if (pendingOpps.length) {
+      Charts.addOpponentsToMainChart(pendingOpps, totalClose);
+    }
+
+    // 7 ─ Stats
+    const oppLinesRendered = oppData.filter(o => {
+      if (!o.points || !o.points.length) return false;
+      return o.points.filter(p => p.date >= o.gameDate).length >= 2;
+    }).length;
+
+    statsLine.textContent =
+      `${games.length.toLocaleString()} rated ${variantLabel.toLowerCase()} games` +
+      ` · ${allOpponents.length.toLocaleString()} unique opponents` +
+      ` · ${oppLinesRendered.toLocaleString()} within ±${RATING_GAP} shown`;
+    statsLine.classList.remove('hidden');
 
     hideLoading();
   }
