@@ -215,21 +215,14 @@ const Charts = (() => {
 
   /* ─── Scatter: Improvement plot ─── */
 
-  function lerpColor(t) {
-    const clamped = Math.max(-1, Math.min(1, t));
-    let r, g, b;
-    if (clamped <= 0) {
-      const s = -clamped;
-      r = Math.round(243 * s + 160 * (1 - s));
-      g = Math.round(156 * s + 160 * (1 - s));
-      b = Math.round(18 * s + 160 * (1 - s));
-    } else {
-      const s = clamped;
-      r = Math.round(46 * s + 160 * (1 - s));
-      g = Math.round(204 * s + 160 * (1 - s));
-      b = Math.round(113 * s + 160 * (1 - s));
+  function scatterColor(ratingChange, maxAbsChange) {
+    const norm = Math.min(1, Math.abs(ratingChange) / maxAbsChange);
+    const t = Math.pow(norm, 0.5);
+    const alpha = 0.45 + t * 0.5;
+    if (ratingChange >= 0) {
+      return `rgba(46, 204, 113, ${alpha})`;
     }
-    return { r, g, b };
+    return `rgba(231, 76, 60, ${alpha})`;
   }
 
   function renderScatterChart(opponents) {
@@ -246,11 +239,7 @@ const Charts = (() => {
       valid.push({ ...opp, ratingChange });
     });
 
-    const colors = valid.map(opp => {
-      const t = opp.ratingChange / maxAbsChange;
-      const c = lerpColor(t);
-      return `rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`;
-    });
+    const colors = valid.map(opp => scatterColor(opp.ratingChange, maxAbsChange));
 
     const data = valid.map(opp => ({ x: opp.gameDate, y: opp.totalGames }));
 
@@ -262,7 +251,7 @@ const Charts = (() => {
           backgroundColor: colors,
           borderColor: 'transparent',
           pointRadius: 4.5,
-          pointHoverRadius: 6,
+          pointHoverRadius: 7,
         }],
       },
       options: {
@@ -271,7 +260,32 @@ const Charts = (() => {
         animation: false,
         plugins: {
           legend: { display: false },
-          tooltip: { enabled: false },
+          tooltip: {
+            backgroundColor: '#1a1a2e',
+            borderColor: '#2a2a4a',
+            borderWidth: 1,
+            titleColor: '#e8e8f0',
+            bodyColor: '#e8e8f0',
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              title: items => {
+                const i = items[0]?.dataIndex;
+                return i != null ? valid[i]?.username : '';
+              },
+              label: item => {
+                const opp = valid[item.dataIndex];
+                if (!opp) return '';
+                const sign = opp.ratingChange >= 0 ? '+' : '';
+                const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                return [
+                  `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${sign}${opp.ratingChange})`,
+                  `Total games: ${opp.totalGames.toLocaleString()}`,
+                  `Played: ${date}`,
+                ];
+              },
+            },
+          },
         },
         scales: {
           x: {

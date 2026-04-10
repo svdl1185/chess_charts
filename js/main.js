@@ -70,11 +70,15 @@
       return;
     }
 
-    const userPoints = LichessAPI.extractVariantHistory(ratingHistory, variant);
-    if (!userPoints.length) {
+    const allUserPoints = LichessAPI.extractVariantHistory(ratingHistory, variant);
+    if (!allUserPoints.length) {
       showError(`No ${variantLabel} rating data found for "${username}".`);
       return;
     }
+
+    const TRIM_DAYS = 30;
+    const trimAfter = new Date(allUserPoints[0].date.getTime() + TRIM_DAYS * 86400000);
+    const userPoints = allUserPoints.filter(p => p.date >= trimAfter);
 
     // 2 ─ Stream ALL rated games
     setPhase('Loading all your games...');
@@ -101,9 +105,10 @@
     }
 
     // 3 ─ Show main chart immediately (user line + volume from actual games)
+    const trimmedGames = games.filter(g => new Date(g.createdAt) >= trimAfter);
     chartsSection.classList.remove('hidden');
     restartCardAnimations();
-    Charts.renderMainChart(userPoints, username, games);
+    Charts.renderMainChart(userPoints, username, trimmedGames);
 
     const allOpponents = LichessAPI.extractOpponents(games, username);
 
