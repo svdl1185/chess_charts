@@ -136,6 +136,8 @@ const Charts = (() => {
 
     opponents.forEach((opp) => {
       if (!opp.points.length) return;
+      const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
+      if (ratingGap > 50) return;
       const fromDate = opp.gameDate;
       const filtered = opp.points.filter(p => p.date >= fromDate);
       if (filtered.length < 2) return;
@@ -253,72 +255,42 @@ const Charts = (() => {
     const ctx = document.getElementById('chart-scatter').getContext('2d');
     if (scatterChart) scatterChart.destroy();
 
-    const points = [];
+    const valid = [];
     let maxAbsChange = 1;
 
     opponents.forEach(opp => {
       if (opp.currentRating == null) return;
       const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
       maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
+      valid.push({ ...opp, ratingChange });
     });
 
-    opponents.forEach(opp => {
-      if (opp.currentRating == null) return;
-      const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
-
-      const ratingGap = Math.abs((opp.ratingAtGame || 0) - (opp.myRatingAtGame || 0));
-      const dotSize = Math.max(3, Math.min(10, 10 - ratingGap / 200));
-
-      const t = ratingChange / maxAbsChange;
+    const colors = valid.map(opp => {
+      const t = opp.ratingChange / maxAbsChange;
       const c = lerpColor(t);
-
-      points.push({
-        x: opp.gameDate,
-        y: ratingChange,
-        username: opp.username,
-        ratingThen: opp.ratingAtGame,
-        ratingNow: opp.currentRating,
-        r: dotSize,
-        _bgColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.55)`,
-        _borderColor: `rgba(${c.r}, ${c.g}, ${c.b}, 0.8)`,
-      });
+      return `rgba(${c.r}, ${c.g}, ${c.b}, 0.5)`;
     });
+
+    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.ratingChange }));
 
     scatterChart = new Chart(ctx, {
-      type: 'bubble',
+      type: 'scatter',
       data: {
         datasets: [{
-          label: 'Opponents',
-          data: points,
-          backgroundColor: points.map(p => p._bgColor),
-          borderColor: points.map(p => p._borderColor),
-          borderWidth: 1,
+          data,
+          backgroundColor: colors,
+          borderColor: 'transparent',
+          pointRadius: 2.5,
+          pointHoverRadius: 2.5,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: false,
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1a1a2e',
-            borderColor: '#2a2a4a',
-            borderWidth: 1,
-            titleColor: '#e8e8f0',
-            bodyColor: '#e8e8f0',
-            padding: 10,
-            callbacks: {
-              title: items => items[0]?.raw?.username || '',
-              label: item => {
-                const p = item.raw;
-                const date = new Date(p.x).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                return [
-                  `Played: ${date}`,
-                  `Rating: ${p.ratingThen} → ${p.ratingNow} (${p.y >= 0 ? '+' : ''}${p.y})`,
-                ];
-              },
-            },
-          },
+          tooltip: { enabled: false },
         },
         scales: {
           x: {
@@ -334,12 +306,49 @@ const Charts = (() => {
         },
       },
     });
+
+    renderGainersTable(valid);
+  }
+
+  function renderGainersTable(opponents) {
+    const container = document.getElementById('top-gainers');
+    if (!container) return;
+
+    const sorted = [...opponents]
+      .sort((a, b) => b.ratingChange - a.ratingChange)
+      .slice(0, 10);
+
+    const rows = sorted.map((opp, i) => {
+      const sign = opp.ratingChange >= 0 ? '+' : '';
+      const cls = opp.ratingChange >= 0 ? 'gain-positive' : 'gain-negative';
+      const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><a href="https://lichess.org/@/${opp.id}" target="_blank" rel="noopener">${opp.username}</a></td>
+        <td>${opp.ratingAtGame}</td>
+        <td>${opp.currentRating}</td>
+        <td class="${cls}">${sign}${opp.ratingChange}</td>
+        <td>${date}</td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <h3 class="top-gainers__title">Top 10 Biggest Gainers</h3>
+      <table class="top-gainers__table">
+        <thead><tr>
+          <th>#</th><th>Player</th><th>Then</th><th>Now</th><th>Change</th><th>Played</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
   }
 
   function destroyAll() {
     if (ratingChart) { ratingChart.destroy(); ratingChart = null; }
     if (opponentsChart) { opponentsChart.destroy(); opponentsChart = null; }
     if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
+    const tg = document.getElementById('top-gainers');
+    if (tg) tg.innerHTML = '';
   }
 
   return { renderRatingChart, renderOpponentsChart, renderScatterChart, destroyAll };

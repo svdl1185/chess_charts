@@ -284,6 +284,65 @@ body {
   height: 100% !important;
 }
 
+/* ── Top Gainers Table ── */
+
+.top-gainers {
+  padding: 0 1.5rem 1.5rem;
+}
+
+.top-gainers__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.top-gainers__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.top-gainers__table th {
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.top-gainers__table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.top-gainers__table tr:last-child td {
+  border-bottom: none;
+}
+
+.top-gainers__table a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.top-gainers__table a:hover {
+  text-decoration: underline;
+}
+
+.gain-positive {
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+.gain-negative {
+  color: #f39c12;
+  font-weight: 600;
+}
+
 /* ── Footer ── */
 
 .footer {
