@@ -89,6 +89,11 @@
         <div class="chart-card__body chart-card__body--volume">
           <canvas id="chart-volume"></canvas>
         </div>
+        <div class="range-slider-wrap">
+          <input type="range" id="range-min" class="range-thumb range-thumb--min" min="0" max="1000" value="0" step="1">
+          <input type="range" id="range-max" class="range-thumb range-thumb--max" min="0" max="1000" value="1000" step="1">
+          <div id="range-track" class="range-track"></div>
+        </div>
       </div>
     </section>
 

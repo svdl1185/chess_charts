@@ -109,6 +109,7 @@
     chartsSection.classList.remove('hidden');
     restartCardAnimations();
     Charts.renderMainChart(userPoints, username, trimmedGames);
+    Charts.initRangeSlider();
 
     const allOpponents = LichessAPI.extractOpponents(games, username);
 

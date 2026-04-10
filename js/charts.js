@@ -18,6 +18,8 @@ const Charts = (() => {
   let mainChart = null;
   let volumeChart = null;
   let scatterChart = null;
+  let fullTimeMin = null;
+  let fullTimeMax = null;
 
   function buildMonthlyVolumeFromGames(games) {
     const buckets = new Map();
@@ -41,6 +43,9 @@ const Charts = (() => {
     if (mainChart) mainChart.destroy();
 
     const ratingData = userPoints.map(p => ({ x: p.date, y: p.rating }));
+
+    fullTimeMin = ratingData[0]?.x?.getTime() ?? Date.now();
+    fullTimeMax = ratingData[ratingData.length - 1]?.x?.getTime() ?? Date.now();
 
     mainChart = new Chart(ctxMain, {
       type: 'line',
@@ -185,16 +190,19 @@ const Charts = (() => {
   function addOpponentsToMainChart(opponents, expectedTotal) {
     if (!mainChart) return;
 
+    const userDs = mainChart.data.datasets[0];
+    const userStart = userDs?.data?.[0]?.x;
+
     const total = expectedTotal || opponents.length;
     const ba = Math.max(0.05, Math.min(0.3, 30 / Math.max(1, total)));
 
     for (const opp of opponents) {
       if (!opp.points || !opp.points.length) continue;
-      const filtered = opp.points.filter(p => p.date >= opp.gameDate);
-      const lineData = [
-        { x: opp.gameDate, y: opp.ratingAtGame },
-        ...filtered.map(p => ({ x: p.date, y: p.rating })),
-      ];
+
+      const startDate = userStart && opp.gameDate < userStart ? userStart : opp.gameDate;
+      const filtered = opp.points.filter(p => p.date >= startDate);
+      const anchor = { x: startDate, y: opp.ratingAtGame };
+      const lineData = [anchor, ...filtered.map(p => ({ x: p.date, y: p.rating }))];
       if (lineData.length < 2) continue;
 
       mainChart.data.datasets.push({
@@ -241,7 +249,16 @@ const Charts = (() => {
 
     const colors = valid.map(opp => scatterColor(opp.ratingChange, maxAbsChange));
 
-    const data = valid.map(opp => ({ x: opp.gameDate, y: opp.gamesDiff }));
+    function symlog(v) {
+      return Math.sign(v) * Math.log10(1 + Math.abs(v));
+    }
+
+    const data = valid.map(opp => ({ x: opp.gameDate, y: symlog(opp.gamesDiff) }));
+
+    const allY = data.map(d => d.y);
+    const yMin = Math.min(...allY);
+    const yMax = Math.max(...allY);
+    const yPad = (yMax - yMin) * 0.05 || 1;
 
     scatterChart = new Chart(ctx, {
       type: 'scatter',
@@ -297,7 +314,16 @@ const Charts = (() => {
           },
           y: {
             ...baseScale,
-            title: { display: true, text: "Opponent's games − your games (since encounter)", color: TICK_COLOR },
+            min: yMin - yPad,
+            max: yMax + yPad,
+            title: { display: true, text: 'Games diff (symlog scale)', color: TICK_COLOR },
+            ticks: {
+              ...baseScale.ticks,
+              callback: val => {
+                const raw = Math.sign(val) * (Math.pow(10, Math.abs(val)) - 1);
+                return Math.abs(raw) >= 1000 ? `${(raw / 1000).toFixed(1)}k` : Math.round(raw).toLocaleString();
+              },
+            },
           },
         },
       },
@@ -339,15 +365,65 @@ const Charts = (() => {
     `;
   }
 
+  function setTimeRange(loFrac, hiFrac) {
+    if (!mainChart || fullTimeMin == null) return;
+    const span = fullTimeMax - fullTimeMin;
+    const xMin = new Date(fullTimeMin + span * loFrac);
+    const xMax = new Date(fullTimeMin + span * hiFrac);
+
+    mainChart.options.scales.x.min = xMin;
+    mainChart.options.scales.x.max = xMax;
+    mainChart.update('none');
+
+    if (volumeChart) {
+      volumeChart.options.scales.x.min = xMin;
+      volumeChart.options.scales.x.max = xMax;
+      volumeChart.update('none');
+    }
+  }
+
+  function initRangeSlider() {
+    const rangeMin = document.getElementById('range-min');
+    const rangeMax = document.getElementById('range-max');
+    const track = document.getElementById('range-track');
+    if (!rangeMin || !rangeMax || !track) return;
+
+    rangeMin.value = 0;
+    rangeMax.value = 1000;
+    track.style.setProperty('--lo', '0%');
+    track.style.setProperty('--hi', '100%');
+
+    function update() {
+      let lo = +rangeMin.value;
+      let hi = +rangeMax.value;
+      if (lo > hi - 10) {
+        if (this === rangeMin) lo = hi - 10;
+        else hi = lo + 10;
+        rangeMin.value = lo;
+        rangeMax.value = hi;
+      }
+      const loPct = (lo / 1000) * 100;
+      const hiPct = (hi / 1000) * 100;
+      track.style.setProperty('--lo', `${loPct}%`);
+      track.style.setProperty('--hi', `${hiPct}%`);
+      setTimeRange(lo / 1000, hi / 1000);
+    }
+
+    rangeMin.addEventListener('input', update);
+    rangeMax.addEventListener('input', update);
+  }
+
   function destroyAll() {
     if (mainChart) { mainChart.destroy(); mainChart = null; }
     if (volumeChart) { volumeChart.destroy(); volumeChart = null; }
     if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
+    fullTimeMin = null;
+    fullTimeMax = null;
     const tg = document.getElementById('top-gainers');
     if (tg) tg.innerHTML = '';
     const sl = document.getElementById('stats-line');
     if (sl) { sl.textContent = ''; sl.classList.add('hidden'); }
   }
 
-  return { renderMainChart, addOpponentsToMainChart, renderScatterChart, destroyAll };
+  return { renderMainChart, addOpponentsToMainChart, renderScatterChart, initRangeSlider, destroyAll };
 })();
