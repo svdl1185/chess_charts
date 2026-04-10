@@ -137,8 +137,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Games / month',
           data: volumeData,
-          backgroundColor: 'rgba(100, 180, 255, 0.25)',
-          borderColor: 'rgba(100, 180, 255, 0.4)',
+          backgroundColor: 'rgba(100, 180, 255, 0.4)',
+          borderColor: 'rgba(100, 180, 255, 0.6)',
           borderWidth: 1,
           borderRadius: 2,
           barPercentage: 0.9,
@@ -223,11 +223,11 @@ const Charts = (() => {
 
   /* ─── Scatter: Improvement plot ─── */
 
-  function scatterColor(ratingChange, maxAbsChange) {
-    const norm = Math.min(1, Math.abs(ratingChange) / maxAbsChange);
-    const t = Math.pow(norm, 0.5);
-    const alpha = 0.45 + t * 0.5;
-    if (ratingChange >= 0) {
+  function scatterColor(diff, maxAbsDiff) {
+    const norm = Math.min(1, Math.abs(diff) / Math.max(1, maxAbsDiff));
+    const t = Math.pow(norm, 0.4);
+    const alpha = 0.5 + t * 0.45;
+    if (diff >= 0) {
       return `rgba(46, 204, 113, ${alpha})`;
     }
     return `rgba(231, 76, 60, ${alpha})`;
@@ -237,17 +237,19 @@ const Charts = (() => {
     const ctx = document.getElementById('chart-scatter').getContext('2d');
     if (scatterChart) scatterChart.destroy();
 
+    const urc = userRatingChange ?? 0;
     const valid = [];
-    let maxAbsChange = 1;
+    let maxAbsDiff = 1;
 
     opponents.forEach(opp => {
       if (opp.currentRating == null) return;
       const ratingChange = opp.currentRating - (opp.ratingAtGame || opp.currentRating);
-      maxAbsChange = Math.max(maxAbsChange, Math.abs(ratingChange));
-      valid.push({ ...opp, ratingChange });
+      const diff = ratingChange - urc;
+      maxAbsDiff = Math.max(maxAbsDiff, Math.abs(diff));
+      valid.push({ ...opp, ratingChange, diff });
     });
 
-    const colors = valid.map(opp => scatterColor(opp.ratingChange, maxAbsChange));
+    const colors = valid.map(opp => scatterColor(opp.diff, maxAbsDiff));
     const data = valid.map(opp => ({ x: opp.gameDate, y: opp.ratingChange }));
 
     const datasets = [{
@@ -284,9 +286,11 @@ const Charts = (() => {
                 const opp = valid[item.dataIndex];
                 if (!opp) return '';
                 const sign = opp.ratingChange >= 0 ? '+' : '';
+                const diffSign = opp.diff >= 0 ? '+' : '';
                 const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
                 return [
                   `Rating: ${opp.ratingAtGame} → ${opp.currentRating} (${sign}${opp.ratingChange})`,
+                  `vs you: ${diffSign}${opp.diff}`,
                   `Played: ${date}`,
                 ];
               },
@@ -339,13 +343,14 @@ const Charts = (() => {
       },
     });
 
-    renderGainersTable(valid);
+    renderGainersTable(valid, urc);
   }
 
-  function renderGainersTable(opponents) {
+  function renderGainersTable(opponents, userRatingChange) {
     const container = document.getElementById('top-gainers');
     if (!container) return;
 
+    const urc = userRatingChange ?? 0;
     const sorted = [...opponents]
       .sort((a, b) => b.ratingChange - a.ratingChange)
       .slice(0, 10);
@@ -353,6 +358,9 @@ const Charts = (() => {
     const rows = sorted.map((opp, i) => {
       const sign = opp.ratingChange >= 0 ? '+' : '';
       const cls = opp.ratingChange >= 0 ? 'gain-positive' : 'gain-negative';
+      const diff = opp.ratingChange - urc;
+      const diffSign = diff >= 0 ? '+' : '';
+      const diffCls = diff >= 0 ? 'gain-positive' : 'gain-negative';
       const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
       return `<tr>
         <td>${i + 1}</td>
@@ -360,6 +368,7 @@ const Charts = (() => {
         <td>${opp.ratingAtGame}</td>
         <td>${opp.currentRating}</td>
         <td class="${cls}">${sign}${opp.ratingChange}</td>
+        <td class="${diffCls}">${diffSign}${diff}</td>
         <td>${date}</td>
       </tr>`;
     }).join('');
@@ -368,7 +377,7 @@ const Charts = (() => {
       <h3 class="top-gainers__title">Top 10 Biggest Gainers</h3>
       <table class="top-gainers__table">
         <thead><tr>
-          <th>#</th><th>Player</th><th>Then</th><th>Now</th><th>Change</th><th>Played</th>
+          <th>#</th><th>Player</th><th>Then</th><th>Now</th><th>Change</th><th>vs You</th><th>Played</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
