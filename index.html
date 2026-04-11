@@ -81,13 +81,12 @@
             <p class="chart-loading__detail" id="scatter-loading-detail"></p>
           </div>
         </div>
-        <div id="top-gainers" class="top-gainers"></div>
       </div>
 
       <div class="chart-card" id="card-scatter2">
         <div class="chart-card__header">
-          <h2 class="chart-card__title">Rating Change: You vs Opponents</h2>
-          <p class="chart-card__desc">X = your rating change since that game, Y = opponent's rating change. Dot size = how long ago you played. <span style="color:rgba(255,255,255,0.4)">Faded</span> = many games since, <span style="color:#e8e8f0">bright</span> = recent. Above the diagonal = opponent gained more. Click to open on Lichess.</p>
+          <h2 class="chart-card__title">Rating Change vs Games Played</h2>
+          <p class="chart-card__desc">X = opponent's total games played, Y = their rating change since you met. <span style="color:#2ecc71">Green</span> = gained more than you, <span style="color:#e74c3c">red</span> = gained less. Brighter &amp; larger = more recent encounter. Click to open on Lichess.</p>
         </div>
         <div class="chart-card__body chart-card__body--tall">
           <canvas id="chart-scatter2"></canvas>
@@ -102,6 +101,7 @@
         <div class="chart-card__body">
           <canvas id="chart-histogram"></canvas>
         </div>
+        <div id="top-gainers" class="top-gainers"></div>
       </div>
 
       <div class="chart-card" id="card-main">

@@ -414,23 +414,25 @@ const Charts = (() => {
     renderGainersTable(valid, userCurrentRating);
   }
 
-  /* ─── Scatter 2: Rating Change You vs Opponent ─── */
+  /* ─── Scatter 2: Rating Change vs Games Played ─── */
 
   function renderScatter2Chart(valid, userCurrentRating) {
     const ctx = document.getElementById('chart-scatter2').getContext('2d');
     if (scatter2Chart) scatter2Chart.destroy();
 
-    const maxDays = Math.max(1, ...valid.map(o => o.daysSince));
+    const withGames = valid.filter(o => o.totalGames != null);
+    if (!withGames.length) return;
+
+    const maxDays = Math.max(1, ...withGames.map(o => o.daysSince));
     const data = [];
     const bgColors = [];
     const radii = [];
 
-    valid.forEach((opp, i) => {
-      data.push({ x: opp.userChangeSinceGame, y: opp.oppChange, _idx: i });
+    withGames.forEach((opp, i) => {
+      data.push({ x: opp.totalGames, y: opp.oppChange, _idx: i });
       const recencyNorm = 1 - Math.min(1, opp.daysSince / maxDays);
       const alpha = 0.15 + recencyNorm * 0.75;
-      const isGreen = opp.diff >= 0;
-      if (isGreen) {
+      if (opp.diff >= 0) {
         bgColors.push(`rgba(46, 204, 113, ${alpha})`);
       } else {
         bgColors.push(`rgba(231, 76, 60, ${alpha})`);
@@ -440,25 +442,21 @@ const Charts = (() => {
 
     function tooltipTitle(items) {
       const idx = items[0]?.raw?._idx;
-      return idx != null ? valid[idx]?.username : '';
+      return idx != null ? withGames[idx]?.username : '';
     }
 
     function tooltipLabel(item) {
-      const opp = valid[item.raw._idx];
+      const opp = withGames[item.raw._idx];
       if (!opp) return '';
       const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
       const days = Math.round(opp.daysSince);
       return [
+        `Total games: ${opp.totalGames.toLocaleString()}`,
         `Opp: ${opp.ratingAtGame} → ${opp.currentRating} (${sign(opp.oppChange)}${opp.oppChange})`,
         `You: ${opp.myRatingAtGame} → ${userCurrentRating} (${sign(opp.userChangeSinceGame)}${opp.userChangeSinceGame})`,
         `Net: ${sign(opp.diff)}${opp.diff}  ·  ${date} (${days}d ago)`,
       ];
     }
-
-    const allX = valid.map(o => o.userChangeSinceGame);
-    const allY = valid.map(o => o.oppChange);
-    const lo = Math.min(Math.min(...allX), Math.min(...allY)) - 20;
-    const hi = Math.max(Math.max(...allX), Math.max(...allY)) + 20;
 
     scatter2Chart = new Chart(ctx, {
       type: 'scatter',
@@ -480,21 +478,9 @@ const Charts = (() => {
           tooltip: { ...tooltipBase, callbacks: { title: tooltipTitle, label: tooltipLabel } },
           annotation: {
             annotations: {
-              diagonal: {
-                type: 'line', yMin: lo, yMax: hi, xMin: lo, xMax: hi,
-                borderColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1, borderDash: [6, 4],
-                label: {
-                  display: true, content: 'equal change', position: 'end',
-                  backgroundColor: 'transparent', color: 'rgba(255, 255, 255, 0.3)', font: { size: 10 },
-                },
-              },
-              zeroX: {
-                type: 'line', xMin: 0, xMax: 0,
-                borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1,
-              },
               zeroY: {
                 type: 'line', yMin: 0, yMax: 0,
-                borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.12)', borderWidth: 1, borderDash: [4, 4],
               },
             },
           },
@@ -502,17 +488,17 @@ const Charts = (() => {
         scales: {
           x: {
             ...baseScale,
-            title: { display: true, text: 'Your rating change since game', color: TICK_COLOR },
+            title: { display: true, text: "Opponent's total games played", color: TICK_COLOR },
           },
           y: {
             ...baseScale,
-            title: { display: true, text: "Opponent's rating change since game", color: TICK_COLOR },
+            title: { display: true, text: "Opponent's rating change since you met", color: TICK_COLOR },
           },
         },
       },
     });
 
-    addClickToOpen(scatter2Chart, valid);
+    addClickToOpen(scatter2Chart, withGames);
   }
 
   /* ─── Histogram: Rating Gain Distribution ─── */
@@ -580,15 +566,7 @@ const Charts = (() => {
               label: item => `${item.raw} opponents`,
             },
           },
-          annotation: {
-            annotations: {
-              zeroLine: {
-                type: 'line', xMin: labels.indexOf('+0') !== -1 ? labels.indexOf('+0') : undefined,
-                xMax: labels.indexOf('+0') !== -1 ? labels.indexOf('+0') : undefined,
-                borderColor: 'rgba(255, 255, 255, 0.3)', borderWidth: 1, borderDash: [4, 3],
-              },
-            },
-          },
+          annotation: { annotations: {} },
         },
         scales: {
           x: {
@@ -617,7 +595,7 @@ const Charts = (() => {
 
     const sorted = [...opponents]
       .sort((a, b) => b.diff - a.diff)
-      .slice(0, 10);
+      .slice(0, 25);
 
     const rows = sorted.map((opp, i) => {
       const dCls = opp.diff >= 0 ? 'gain-positive' : 'gain-negative';
@@ -633,7 +611,7 @@ const Charts = (() => {
     }).join('');
 
     container.innerHTML = `
-      <h3 class="top-gainers__title">Top 10 — Gained Most vs You</h3>
+      <h3 class="top-gainers__title">Top 25 — Gained Most vs You</h3>
       <table class="top-gainers__table">
         <thead><tr>
           <th>#</th><th>Player</th><th>Them</th><th>You</th><th>Net</th><th>Played</th>
