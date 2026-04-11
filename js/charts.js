@@ -414,30 +414,28 @@ const Charts = (() => {
     renderGainersTable(valid, userCurrentRating);
   }
 
-  /* ─── Scatter 2: Rating Change vs Games Played ─── */
+  /* ─── Scatter 2: Rating Diff vs Games Diff ─── */
 
   function renderScatter2Chart(valid, userCurrentRating) {
     const ctx = document.getElementById('chart-scatter2').getContext('2d');
     if (scatter2Chart) scatter2Chart.destroy();
 
-    const withGames = valid.filter(o => o.totalGames != null);
+    const withGames = valid.filter(o => o.gamesDiff != null && o.totalGames != null);
     if (!withGames.length) return;
 
     const maxDays = Math.max(1, ...withGames.map(o => o.daysSince));
+    const maxGames = Math.max(1, ...withGames.map(o => o.totalGames));
     const data = [];
     const bgColors = [];
     const radii = [];
 
     withGames.forEach((opp, i) => {
-      data.push({ x: opp.totalGames, y: opp.oppChange, _idx: i });
+      data.push({ x: symlog(opp.gamesDiff), y: opp.diff, _idx: i });
       const recencyNorm = 1 - Math.min(1, opp.daysSince / maxDays);
-      const alpha = 0.15 + recencyNorm * 0.75;
-      if (opp.diff >= 0) {
-        bgColors.push(`rgba(46, 204, 113, ${alpha})`);
-      } else {
-        bgColors.push(`rgba(231, 76, 60, ${alpha})`);
-      }
-      radii.push(2.5 + recencyNorm * 4);
+      const alpha = 0.08 + recencyNorm * 0.82;
+      bgColors.push(`rgba(100, 180, 255, ${alpha})`);
+      const gamesNorm = Math.sqrt(opp.totalGames / maxGames);
+      radii.push(2 + gamesNorm * 5.5);
     });
 
     function tooltipTitle(items) {
@@ -450,11 +448,13 @@ const Charts = (() => {
       if (!opp) return '';
       const date = opp.gameDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
       const days = Math.round(opp.daysSince);
+      const gds = opp.gamesDiff >= 0 ? '+' : '';
       return [
+        `Games diff: ${gds}${opp.gamesDiff} (~${opp.estOppGamesSince} them vs ${opp.userGamesSince} you)`,
         `Total games: ${opp.totalGames.toLocaleString()}`,
         `Opp: ${opp.ratingAtGame} → ${opp.currentRating} (${sign(opp.oppChange)}${opp.oppChange})`,
         `You: ${opp.myRatingAtGame} → ${userCurrentRating} (${sign(opp.userChangeSinceGame)}${opp.userChangeSinceGame})`,
-        `Net: ${sign(opp.diff)}${opp.diff}  ·  ${date} (${days}d ago)`,
+        `Rating diff: ${sign(opp.diff)}${opp.diff}  ·  ${date} (${days}d ago)`,
       ];
     }
 
@@ -482,17 +482,28 @@ const Charts = (() => {
                 type: 'line', yMin: 0, yMax: 0,
                 borderColor: 'rgba(255, 255, 255, 0.12)', borderWidth: 1, borderDash: [4, 4],
               },
+              zeroX: {
+                type: 'line', xMin: 0, xMax: 0,
+                borderColor: 'rgba(255, 255, 255, 0.12)', borderWidth: 1, borderDash: [4, 4],
+              },
             },
           },
         },
         scales: {
           x: {
             ...baseScale,
-            title: { display: true, text: "Opponent's total games played", color: TICK_COLOR },
+            title: { display: true, text: "Opponent's games − your games (since encounter)", color: TICK_COLOR },
+            afterBuildTicks: (axis) => {
+              axis.ticks = SYMLOG_NICE
+                .map(v => symlog(v))
+                .filter(v => v >= axis.min - 0.01 && v <= axis.max + 0.01)
+                .map(value => ({ value }));
+            },
+            ticks: { ...baseScale.ticks, callback: value => formatGamesDiff(symexp(value)) },
           },
           y: {
             ...baseScale,
-            title: { display: true, text: "Opponent's rating change since you met", color: TICK_COLOR },
+            title: { display: true, text: "Opponent's rating change − your rating change", color: TICK_COLOR },
           },
         },
       },
